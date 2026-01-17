@@ -1,12 +1,12 @@
 import { useState, useEffect } from "react";
+import "./App.css";
 
 function App() {
   const [message, setMessage] = useState("Loading backend status...");
 
-  // Note: We will set this URL in Vercel Environment Variables later
-  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
-
   useEffect(() => {
+    const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+
     fetch(`${API_URL}/`)
       .then((res) => res.text())
       .then((data) => setMessage(data))
@@ -14,7 +14,7 @@ function App() {
   }, []);
 
   return (
-    <div style={{ padding: "2rem" }}>
+    <div className="app-container">
       <h1>Honest Auction House</h1>
       <p>
         Backend Status: <strong>{message}</strong>
