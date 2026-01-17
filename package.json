@@ -1,0 +1,25 @@
+{
+  "name": "honest-auction-house",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "concurrently \"npm run dev --workspace=server\" \"npm run dev --workspace=client\""
+  },
+  "devDependencies": {
+    "concurrently": "^8.0.0"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "circomlib": "^2.0.5"
+  }
+}
