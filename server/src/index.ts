@@ -3,7 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { PrismaClient } from '@prisma/client';
 import { verifyBidProof } from './utils/verifier';
-
+import bcrypt from 'bcryptjs';
 
 dotenv.config();
 
@@ -11,7 +11,11 @@ const app = express();
 const prisma = new PrismaClient();
 const PORT = process.env.PORT || 3000;
 
-app.use(cors());
+app.use(cors({
+    origin: process.env.FRONTEND_URL || "*", // todo:  use Env var in prod
+    methods: ["GET", "POST"],
+    credentials: true
+}));
 app.use(express.json());
 
 async function getPoseidonHash(amount: any, secret: any) {
@@ -27,11 +31,16 @@ async function getPoseidonHash(amount: any, secret: any) {
 app.post('/register', async (req, res) => {
     try {
         const { username, password } = req.body;
-        // In production, hash the password (e.g., bcrypt)!
+        const hashedPassword = await bcrypt.hash(password, 10);
+
         const user = await prisma.user.create({
-            data: { username, password }
+            data: {
+                username,
+                password: hashedPassword
+            }
         });
-        res.json(user);
+
+        res.json({ id: user.id, username: user.username });
     } catch (error) {
         res.status(400).json({ error: 'Username likely taken' });
     }
@@ -42,8 +51,15 @@ app.post('/login', async (req, res) => {
     const { username, password } = req.body;
     const user = await prisma.user.findUnique({ where: { username } });
 
-    if (user && user.password === password) {
-        res.json({ success: true, userId: user.id });
+    if (!user) {
+        return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    //VERIFICATION: plaintext input vs stored hash
+    const isValid = await bcrypt.compare(password, user.password);
+
+    if (isValid) {
+        res.json({ success: true, userId: user.id, username: user.username });
     } else {
         res.status(401).json({ error: 'Invalid credentials' });
     }

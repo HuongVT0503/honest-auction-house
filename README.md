@@ -74,11 +74,15 @@ honest-auction-house/
   - Resolved TypeScript definitions and ESM import issues for `circomlibjs` on Node.js.
   - Fixed React Hook dependency cycles and linting errors for production builds.
   - Configured automated database schema syncing (`prisma db push`) for Render.
+
+### ✅ Phase 5: Production Hardening & UX Polish (Completed)
+
+- **Security:** - Replaced plaintext password storage with `bcrypt` hashing for `POST /register` and `POST /login`.
+- **UX Automation:** - Implemented `setInterval` polling in React to automatically refresh the auction list.
+  - Added logic to auto-trigger the "Lazy Update" on the server, ensuring auctions transition from `OPEN` to `REVEAL` without manual refresh.
+- **Production Config:** - Configured strict CORS settings to allow secure communication between Vercel (Frontend) and Render (Backend).
+
 ---
-
-## 🔜 Next Steps
-
-2.  **Auction Timer:** Implement logic to automatically switch auction status from `OPEN` to `REVEAL`.
 
 ---
 
@@ -131,5 +135,4 @@ snarkjs zkey export verificationkey bid_check_final.zkey verification_key.json
 2.  **Client Logic:** Implement `snark-utils.ts` in React to generate proofs in the browser using `snarkjs`.
 3.  **Verification:** Add `POST /bid` endpoint to Server that verifies the ZK proof before saving the commitment to the DB.
 
-npx prisma db push
-npx prisma generate
+.circom files ( require local recompilation).

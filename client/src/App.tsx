@@ -35,6 +35,11 @@ function App() {
 
   useEffect(() => {
     fetchAuctions();
+    const interval = setInterval(() => {
+      fetchAuctions();
+    }, 10000); //every 10s
+
+    return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -149,10 +154,11 @@ function App() {
                   <p>Status: <strong>{auc.status}</strong></p>
 
                   {auc.status === "OPEN" && (
-                    <p className="auction-timer">
-                      Ends at: {new Date(auc.endsAt).toLocaleTimeString()}
-                      ({Math.max(0, Math.floor((new Date(auc.endsAt).getTime() - Date.now()) / 60000))} min remaining)
-                    </p>
+                    <div className="auction-timer-warning">
+                      ⏳ Ends: {new Date(auc.endsAt).toLocaleTimeString()}
+                      <br />
+                      (Refresh automatically in {Math.max(0, Math.ceil((new Date(auc.endsAt).getTime() - Date.now()) / 1000 / 60))} min)
+                    </div>
                   )}
 
                   <button onClick={() => setSelectedAuction(auc)}>

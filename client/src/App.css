@@ -66,3 +66,9 @@
   color: #888;
   margin-top: 5px;
 }
+
+.auction-timer-warning {
+  color: #f39c12;
+  font-weight: bold;
+  margin-top: 5px;
+}
