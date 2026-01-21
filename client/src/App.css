@@ -44,3 +44,10 @@
 .app-container {
   padding: 2rem;
 }
+
+
+.bid-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}

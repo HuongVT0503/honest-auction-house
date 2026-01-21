@@ -14,15 +14,19 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@prisma/client": "^5.22.0",
+    "circomlibjs": "^0.1.7",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
-    "express": "^5.2.1"
+    "express": "^5.2.1",
+    "snarkjs": "^0.7.6"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node": "^25.0.9",
     "nodemon": "^3.1.11",
+    "prisma": "^5.22.0",
     "ts-node": "^1.7.1",
     "typescript": "^5.9.3"
   }
