@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import { PrismaClient } from '@prisma/client';
 import { verifyBidProof } from './utils/verifier';
 
+
 dotenv.config();
 
 const app = express();
@@ -12,6 +13,14 @@ const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
+
+async function getPoseidonHash(amount: any, secret: any) {
+    const { buildPoseidon } = await import('circomlibjs'); // Dynamic import for CommonJS
+    const poseidon = await buildPoseidon();
+    const hashBytes = poseidon([BigInt(amount), BigInt(secret)]);
+    return poseidon.F.toString(hashBytes);
+}
+
 
 //USER ROUTES
 
@@ -67,17 +76,51 @@ app.post('/auctions', async (req, res) => {
 
 //list all open auctions
 app.get('/auctions', async (req, res) => {
-    const auctions = await prisma.auction.findMany({
-        where: { status: "OPEN" },
-        include: { seller: { select: { username: true } } }
-    });
-    res.json(auctions);
+    try {
+        const now = new Date();
+
+        //LAZY UPDATE: auto flip expired OPEN auctions to REVEAL
+        //runs every time s.o loads the dashboard
+        await prisma.auction.updateMany({
+            where: {
+                status: "OPEN",
+                endsAt: { lte: now }
+            },
+            data: {
+                status: "REVEAL"
+            }
+        });
+
+        //fetch the updated list
+        const auctions = await prisma.auction.findMany({
+            where: { OR: [{ status: "OPEN" }, { status: "REVEAL" }] },
+            orderBy: { createdAt: 'desc' },
+            include: { seller: { select: { username: true } } }
+        });
+
+        res.json(auctions);
+    } catch (error) {
+        console.error("Error fetching auctions:", error);
+        res.status(500).json({ error: 'Failed to fetch auctions' });
+    }
 });
 
 //place a Sealed Bid
 app.post('/bid', async (req, res) => {
     try {
         const { auctionId, bidderId, proof, publicSignals } = req.body;
+
+        const auction = await prisma.auction.findUnique({
+            where: { id: Number(auctionId) }
+        });
+
+        if (!auction) {
+            return res.status(404).json({ error: "Auction not found" });
+        }
+
+        if (new Date() > auction.endsAt || auction.status !== "OPEN") {
+            return res.status(400).json({ error: "Auction has ended. No new bids allowed." });
+        }
 
         //verify ZK proof
         // publicSignals[0] is the 'commitment' (Poseidon hash output) from the circuit
@@ -106,6 +149,49 @@ app.post('/bid', async (req, res) => {
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Failed to place bid' });
+    }
+});
+
+//Reveal
+app.post('/bid/reveal', async (req, res) => {
+    try {
+        const { auctionId, bidderId, amount, secret } = req.body;
+
+        //find the sealed bid using composite key
+        const bid = await prisma.bid.findUnique({
+            where: {
+                auctionId_bidderId: {
+                    auctionId: Number(auctionId),
+                    bidderId: Number(bidderId)
+                }
+            }
+        });
+
+        if (!bid) return res.status(404).json({ error: "Bid not found" });
+        if (bid.amount !== null) return res.status(400).json({ error: "Already revealed" });
+
+        //verify the inputs match the commitment on the blockchain/DB
+        //replicate the circuit logic: Commitment = Poseidon(amount, secret)
+        const calculatedHash = await getPoseidonHash(amount, secret);
+
+        if (calculatedHash !== bid.commitment) {
+            return res.status(400).json({ error: "Invalid secret or amount! Hash mismatch." });
+        }
+
+        //if valid, update the bid with the real values
+        await prisma.bid.update({
+            where: { id: bid.id },
+            data: {
+                amount: Number(amount),
+                secret: String(secret)
+            }
+        });
+
+        res.json({ success: true, message: "Bid revealed successfully!" });
+
+    } catch (error) {
+        console.error("Reveal error:", error);
+        res.status(500).json({ error: 'Failed to reveal bid' });
     }
 });
 

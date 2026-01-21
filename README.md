@@ -63,19 +63,22 @@ honest-auction-house/
   - Implemented `utils/verifier.ts` to cryptographically verify proofs on the backend.
   - Added `POST /bid` endpoint that accepts a proof, verifies it, and stores the commitment.
 
-### 🚧 Phase 4: Full Auction Lifecycle (In Progress)
+### ✅ Phase 4: Full Auction Lifecycle (Completed)
 
-- **Reveal Phase:** Implement logic for users to reveal their bids after the auction closes.
-- **Winner Selection:** Algorithm to verify revealed bids and determine the highest valid bidder.
-- **UI/UX Polish:** Improve the React frontend to list auctions and show real-time status.
-
+- **Reveal Phase:** Implemented `POST /bid/reveal` logic to cryptographically verify `Hash(amount, secret) == stored_commitment`.
+- **Frontend Integration:**
+  - **Dynamic Auth:** Replaced hardcoded IDs with a working Login/Register flow.
+  - **Auction Dashboard:** Real-time fetching of active auctions via `GET /auctions`.
+  - **Action States:** UI automatically toggles between "Place Sealed Bid" and "Reveal Bid" based on auction status.
+- **Deployment & Stability:**
+  - Resolved TypeScript definitions and ESM import issues for `circomlibjs` on Node.js.
+  - Fixed React Hook dependency cycles and linting errors for production builds.
+  - Configured automated database schema syncing (`prisma db push`) for Render.
 ---
 
 ## 🔜 Next Steps
 
-1.  **Reveal Endpoint:** Add `POST /bid/reveal` to server (Check if `Hash(sent_amount, sent_secret) == stored_commitment`).
 2.  **Auction Timer:** Implement logic to automatically switch auction status from `OPEN` to `REVEAL`.
-3.  **Frontend List:** Replace the test "Bid Form" with a real list of active auctions fetched from the API.
 
 ---
 

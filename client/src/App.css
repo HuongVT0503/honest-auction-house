@@ -45,9 +45,24 @@
   padding: 2rem;
 }
 
-
 .bid-form {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.auction-item {
+  border: 1px solid #444;
+  margin: 10px;
+  padding: 10px;
+}
+
+.btn-reveal {
+  background-color: #d35400;
+}
+
+.auction-timer {
+  font-size: 0.9em;
+  color: #888;
+  margin-top: 5px;
 }
