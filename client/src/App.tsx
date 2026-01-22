@@ -71,6 +71,9 @@ function App() {
   const handleBid = async () => {
     if (!selectedAuction || !user) return;
     setStatus("Generating Zero Knowledge Proof...");
+
+    const bidData = { amount, secret };
+    localStorage.setItem(`bid_${selectedAuction.id}_${user.id}`, JSON.stringify(bidData));
     try {
       //generate proof in browser
       const { proof, publicSignals } = await generateBidProof(amount, secret);
@@ -125,6 +128,26 @@ function App() {
     }
   };
 
+  const handleCloseAuction = async () => {
+    if (!selectedAuction) return;
+    setStatus("Closing Auction...");
+    try {
+      const res = await fetch(`${API_URL}/auctions/${selectedAuction.id}/close`, {
+        method: "POST"
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setStatus(`Auction Closed! Winner: ${data.winner} ($${data.winningAmount})`);
+        fetchAuctions(); //refresh
+      } else {
+        setStatus(`Error: ${data.error}`);
+      }
+    } catch (e) {
+      console.error(e);
+      setStatus("Failed to close auction.");
+    }
+  };
+
   return (
     <div className="app-container">
       <h1>Honest Auction House</h1>
@@ -173,7 +196,6 @@ function App() {
             <div className="card">
               <button onClick={() => setSelectedAuction(null)}>← Back to List</button>
               <h2>{selectedAuction.title} ({selectedAuction.status})</h2>
-
               <div className="bid-form">
                 <input
                   type="number"
@@ -181,19 +203,55 @@ function App() {
                   value={amount}
                   onChange={(e) => setAmount(Number(e.target.value))}
                 />
-                <input
-                  type="text"
-                  placeholder="Secret (Keep safe!)"
-                  value={secret}
-                  onChange={(e) => setSecret(e.target.value)}
-                />
+
+                <div className="input-group">
+                  <input
+                    type="text"
+                    placeholder="Secret (Keep safe!)"
+                    value={secret}
+                    onChange={(e) => setSecret(e.target.value)}
+                  />
+                  <button
+                    className="btn-random"
+                    onClick={() => setSecret(Math.floor(Math.random() * 100000).toString())}
+                  >
+                    🎲 Random
+                  </button>
+                </div>
 
                 {selectedAuction.status === "OPEN" ? (
                   <button onClick={handleBid}>Generate Proof & Bid</button>
+                ) : selectedAuction.status === "REVEAL" ? (
+                  <>
+                    <button onClick={() => {
+                      const saved = localStorage.getItem(`bid_${selectedAuction.id}_${user.id}`);
+                      if (saved) {
+                        const { amount, secret } = JSON.parse(saved);
+                        setAmount(amount);
+                        setSecret(secret);
+                        setStatus("Restored secret from browser storage!");
+                      } else {
+                        setStatus("No saved bid found on this device.");
+                      }
+                    }}>
+                      📂 Load My Secret
+                    </button>
+
+                    <button onClick={handleReveal} className="btn-reveal">
+                      Reveal My Bid
+                    </button>
+
+                    <div className="seller-zone">
+                      <p className="seller-label">Seller Zone:</p>
+                      <button onClick={handleCloseAuction} className="btn-close-auction">
+                        🏆 End Auction & Pick Winner
+                      </button>
+                    </div>
+                  </>
                 ) : (
-                  <button onClick={handleReveal} className="btn-reveal">
-                    Reveal My Bid
-                  </button>
+                  <div className="winner-banner">
+                    <h3>🏁 Auction Closed</h3>
+                  </div>
                 )}
               </div>
               <p>Status: <strong>{status}</strong></p>

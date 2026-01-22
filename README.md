@@ -91,17 +91,20 @@ honest-auction-house/
 Follow these steps to get the full system running on your machine.
 
 ### Prerequisites
+
 - [Node.js](https://nodejs.org/) (v18+)
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) (Recommended for Database)
 - OR a local PostgreSQL installation
 
 ### 1. Start the Database
+
 If using Docker, run this in the root folder:
+
 ```bash
 docker-compose up -d
 ```
-This starts a Postgres DB on port 5432 with user admin and password password123.
 
+This starts a Postgres DB on port 5432 with user admin and password password123.
 
 ### 2. Setup Backend (Server)
 
@@ -121,6 +124,7 @@ npx prisma db push
 # 4. Start Server
 npm run dev
 ```
+
 Server runs on: http://localhost:3000
 
 ### 3. Setup Frontend (Client)
@@ -139,26 +143,32 @@ npm install
 # 3. Start React App
 npm run dev
 ```
+
 App runs on: http://localhost:5173
 
 ### 4. Code Adjustments for Hybrid Mode
+
 Ensure your code gracefully handles both environments.
 
 **File:** `server/src/index.ts`
 Your CORS setup currently relies on an env var. Make sure it defaults to localhost if the env var is missing.
+
 ```typescript
-app.use(cors({
+app.use(
+  cors({
     origin: process.env.FRONTEND_URL || "http://localhost:5173", // Default to Vite's local port
     methods: ["GET", "POST"],
-    credentials: true
-}));
+    credentials: true,
+  }),
+);
 ```
+
 File: client/src/App.tsx Ensure the API URL defaults to localhost if the Vite env var isn't set.
+
 ```typescript
 // If VITE_API_URL is not set in .env, it defaults to localhost:3000
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 ```
-
 
 ### 5. ZKP Circuits (Regeneration)
 
@@ -179,7 +189,9 @@ snarkjs zkey contribute bid_check_0000.zkey bid_check_final.zkey --name="YourNam
 # 4. Export Verification Key
 snarkjs zkey export verificationkey bid_check_final.zkey verification_key.json
 ```
+
 ### 6. Final Check: The "Fresh Clone" Test
+
 To guarantee it works for others:
 
 Push all changes (including docker-compose.yml and .env.example) to GitHub.
@@ -190,13 +202,62 @@ Run git clone <your-repo-url>.
 
 Follow your own README steps exactly.
 
-If you hit a snag (e.g., "Table not found"), add the missing step (e.g., npx prisma db push) to the README.
----
+## If you hit a snag (e.g., "Table not found"), add the missing step (e.g., npx prisma db push) to the README.
 
-## 🔜 Next Steps
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User
+    participant Client as 💻 Browser (Client)
+    participant Server as 🛡️ Server (Backend)
+    participant DB as 💾 Database
 
-1.  **Artifact Migration:** Move `bid_check.wasm` and `bid_check_final.zkey` to `client/public/`.
-2.  **Client Logic:** Implement `snark-utils.ts` in React to generate proofs in the browser using `snarkjs`.
-3.  **Verification:** Add `POST /bid` endpoint to Server that verifies the ZK proof before saving the commitment to the DB.
+    Note over User, DB: 🛑 PHASE 1: COMMIT (Sealed Bid)
+
+    User->>Client: Enters Amount (10 ETH) + Secret (12345)
+
+    rect rgb(240, 248, 255)
+        Note right of Client: 🔒 Privacy happens here
+        Client->>Client: Calculate Hash(10, 12345) ➔ "0xABC..."
+        Client->>Client: Generate ZK Proof<br/>(Private: 10, 12345 | Public: "0xABC...")
+    end
+
+    Client->>Server: POST /bid<br/>{ proof, commitment: "0xABC..." }
+
+    Server->>Server: Verify Proof using Verification Key
+    alt Proof Invalid
+        Server-->>Client: ❌ Error: Integrity Check Failed
+    else Proof Valid
+        Server->>DB: INSERT Bid (Commitment="0xABC...", Amount=NULL)
+        Server-->>Client: ✅ Bid Placed (Values Hidden)
+    end
+
+    Note over User, DB: ⏳ TIME PASSES ... AUCTION ENDS
+
+    Note over User, DB: 🔓 PHASE 2: REVEAL
+
+    User->>Client: Clicks "Reveal" (Loads saved Secret)
+    Client->>Server: POST /bid/reveal<br/>{ amount: 10, secret: 12345 }
+
+    Server->>DB: GET Bid by UserID
+    DB-->>Server: Returns stored Commitment "0xABC..."
+
+    rect rgb(255, 240, 245)
+        Note left of Server: 🔍 Verification logic
+        Server->>Server: Re-calculate Hash(10, 12345)
+        Server->>Server: Check if Calculated Hash == Stored "0xABC..."
+    end
+
+    alt Hash Mismatch
+        Server-->>Client: ❌ Cheating Detected!
+    else Hash Matches
+        Server->>DB: UPDATE Bid SET amount=10, secret="12345"
+        Server-->>Client: ✅ Bid Revealed Successfully
+    end
+```
 
 .circom files ( require local recompilation).
+
+```
+
+```
