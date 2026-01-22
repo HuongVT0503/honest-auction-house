@@ -265,7 +265,7 @@ app.post('/auctions/:id/close', async (req, res) => {
 const frontendPath = path.join(__dirname, "../public");
 app.use(express.static(frontendPath));
 
-app.get('*', (req, res) => {
+app.get(/(.*)/, (req, res) => {
     if (req.path.startsWith('/api') || req.path.startsWith('/bid') || req.path.startsWith('/auctions')) {
         return res.status(404).json({ error: "Not found" });
     }
