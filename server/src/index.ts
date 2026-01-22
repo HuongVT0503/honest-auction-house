@@ -262,6 +262,25 @@ app.post('/auctions/:id/close', async (req, res) => {
     }
 });
 
+
+app.post('/admin/reset', async (req, res) => {
+    try {
+        const { password } = req.body;
+        if (password !== "admin_reset_123") {
+            return res.status(403).json({ error: "Unauthorized" });
+        }
+
+        await prisma.bid.deleteMany({});
+        await prisma.auction.deleteMany({});
+        //?keeop users
+        // await prisma.user.deleteMany({}); 
+
+        res.json({ success: true, message: "All auctions and bids wiped." });
+    } catch (error) {
+        console.error("Reset failed:", error);
+        res.status(500).json({ error: "Failed to reset database" });
+    }
+});
 const frontendPath = path.join(__dirname, "../public");
 app.use(express.static(frontendPath));
 

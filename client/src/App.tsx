@@ -120,7 +120,10 @@ function App() {
         }),
       });
       const data = await res.json();
-      if (res.ok) setStatus("Success! Bid Revealed.");
+      if (res.ok) {
+        setStatus("Success! Bid Revealed.");
+        fetchAuctions();
+      }
       else setStatus(`Error: ${data.error}`);
     } catch (e) {
       console.error(e);

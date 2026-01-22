@@ -6,10 +6,10 @@ A Zero-Knowledge Proof (ZKP) based auction system where users can submit sealed 
 
 ## 🛠 Tech Stack
 
-- [cite_start]**Frontend:** React (Vite) + TypeScript [cite: 23, 24]
-- [cite_start]**Backend:** Node.js + Express [cite: 54]
-- [cite_start]**Database:** PostgreSQL (via Prisma ORM) [cite: 55, 56]
-- [cite_start]**ZKP Engine:** Circom (Circuits) + SnarkJS (Proofs) [cite: 8, 9]
+- **Frontend:** React (Vite) + TypeScript
+- **Backend:** Node.js + Express
+- **Database:** PostgreSQL (via Prisma ORM)
+- **ZKP Engine:** Circom (Circuits) + SnarkJS (Proofs)
 - **Infrastructure:** Render (Backend/DB) + Vercel (Frontend)
 
 ---
@@ -24,8 +24,6 @@ honest-auction-house/
 ├── docker-compose.yml      # (Optional) Local DB setup
 └── README.md               # Project Documentation
 ```
-
----
 
 ## 📅 Project Progress Log
 
@@ -77,12 +75,19 @@ honest-auction-house/
 
 ### ✅ Phase 5: Production Hardening & UX Polish (Completed)
 
-- **Security:** - Replaced plaintext password storage with `bcrypt` hashing for `POST /register` and `POST /login`.
-- **UX Automation:** - Implemented `setInterval` polling in React to automatically refresh the auction list.
+- **Security:** Replaced plaintext password storage with `bcrypt` hashing for `POST /register` and `POST /login`.
+- **UX Automation:**
+  - Implemented `setInterval` polling in React to automatically refresh the auction list.
   - Added logic to auto-trigger the "Lazy Update" on the server, ensuring auctions transition from `OPEN` to `REVEAL` without manual refresh.
-- **Production Config:** - Configured strict CORS settings to allow secure communication between Vercel (Frontend) and Render (Backend).
+- **Production Config:** Configured strict CORS settings to allow secure communication between Vercel (Frontend) and Render (Backend).
 
----
+### ✅ Phase 6: Logic Completion & Demo Readiness (Completed)
+
+- **Winner Determination:** Implemented `POST /auctions/:id/close` to calculate the winner based on the highest valid revealed bid.
+- **Secret Persistence:** Implemented `localStorage` logic in the client to auto-save and restore bid secrets, preventing users from losing their ability to reveal.
+- **Admin Tools:** Added `POST /admin/reset` endpoint to wipe the database for clean demonstrations.
+- **UX Feedback:** Added immediate list refreshing upon successful bid revelation to visually confirm actions.
+- **Documentation:** Added State Diagrams to complement Sequence Diagrams.
 
 ---
 
@@ -163,7 +168,7 @@ app.use(
 );
 ```
 
-File: client/src/App.tsx Ensure the API URL defaults to localhost if the Vite env var isn't set.
+File: `client/src/App.tsx` Ensure the API URL defaults to localhost if the Vite env var isn't set.
 
 ```typescript
 // If VITE_API_URL is not set in .env, it defaults to localhost:3000
@@ -190,19 +195,11 @@ snarkjs zkey contribute bid_check_0000.zkey bid_check_final.zkey --name="YourNam
 snarkjs zkey export verificationkey bid_check_final.zkey verification_key.json
 ```
 
-### 6. Final Check: The "Fresh Clone" Test
+---
 
-To guarantee it works for others:
+## 📊 System Diagrams
 
-Push all changes (including docker-compose.yml and .env.example) to GitHub.
-
-Go to a new folder on your computer.
-
-Run git clone <your-repo-url>.
-
-Follow your own README steps exactly.
-
-## If you hit a snag (e.g., "Table not found"), add the missing step (e.g., npx prisma db push) to the README.
+### Sequence Diagram: The ZKP Bid Lifecycle
 
 ```mermaid
 sequenceDiagram
@@ -256,8 +253,29 @@ sequenceDiagram
     end
 ```
 
-.circom files ( require local recompilation).
+### State Diagram: Auction Status Flow
 
-```
+```mermaid
+stateDiagram-v2
+    [*] --> OPEN: Seller Creates Auction
 
+    state OPEN {
+        [*] --> AcceptingBids
+        AcceptingBids --> AcceptingBids: User Submits Proof (Sealed)
+    }
+
+    OPEN --> REVEAL: Time Expired (Lazy Update)
+
+    state REVEAL {
+        [*] --> VerifyingSecrets
+        VerifyingSecrets --> VerifyingSecrets: User Reveals Secret
+        VerifyingSecrets --> VerifyingSecrets: Server Checks Hash
+    }
+
+    REVEAL --> CLOSED: Seller Clicks "End Auction"
+
+    state CLOSED {
+        [*] --> WinnerAnnounced
+        WinnerAnnounced --> [*]
+    }
 ```
