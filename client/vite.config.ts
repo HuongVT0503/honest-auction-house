@@ -10,4 +10,12 @@ export default defineConfig({
       protocolImports: true,
     }),
   ],
+  server: {
+    proxy: {
+      '/auctions': 'http://localhost:3000',
+      '/bid': 'http://localhost:3000',
+      '/register': 'http://localhost:3000',
+      '/login': 'http://localhost:3000'
+    }
+  }
 })

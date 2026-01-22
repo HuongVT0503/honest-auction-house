@@ -8,12 +8,13 @@ datasource db {
 }
 
 model User {
-  id        Int       @id @default(autoincrement())
-  username  String    @unique
-  password  String    // In a real app, hash this!
-  auctions  Auction[] @relation("SellerAuctions")
-  bids      Bid[]
-  createdAt DateTime  @default(now())
+  id          Int       @id @default(autoincrement())
+  username    String    @unique
+  password    String   
+  auctions    Auction[] @relation("SellerAuctions")
+  bids        Bid[]
+  wonAuctions Auction[] @relation("AuctionWinner") 
+  createdAt   DateTime  @default(now())
 }
 
 model Auction {
@@ -26,6 +27,9 @@ model Auction {
   sellerId    Int
   seller      User          @relation("SellerAuctions", fields: [sellerId], references: [id])
   bids        Bid[]
+
+  winnerId    Int?          
+  winner      User?         @relation("AuctionWinner", fields: [winnerId], references: [id])
   
   createdAt   DateTime      @default(now())
 }
@@ -44,7 +48,7 @@ model Bid {
   // --- REVEAL DATA ---
   //NULL until the auction enters 'REVEAL' phase
   amount      Int?     
-  secret      String?  // Optional: store the secret after reveal for auditability
+  secret      String?  // todo: store the secret after reveal for auditability
   
   createdAt   DateTime @default(now())
 

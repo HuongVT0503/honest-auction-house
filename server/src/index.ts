@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import { PrismaClient } from '@prisma/client';
 import { verifyBidProof } from './utils/verifier';
 import bcrypt from 'bcryptjs';
+import path from 'path';
 
 dotenv.config();
 
@@ -12,7 +13,7 @@ const prisma = new PrismaClient();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors({
-    origin: process.env.FRONTEND_URL || "*", // todo:  use Env var in prod
+    origin: process.env.NODE_ENV === "production" ? false : (process.env.FRONTEND_URL || "*"),
     methods: ["GET", "POST"],
     credentials: true
 }));
@@ -214,6 +215,61 @@ app.post('/bid/reveal', async (req, res) => {
 // Health Check
 app.get('/', (req, res) => {
     res.send('Honest Auction House Backend is Running & Connected to DB!');
+});
+
+app.post('/auctions/:id/close', async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        //fetch auction and revealed bids
+        const auction = await prisma.auction.findUnique({
+            where: { id: Number(id) },
+            include: { bids: true }
+        });
+
+        if (!auction) return res.status(404).json({ error: "Auction not found" });
+
+        //filter for VALID REVEALED bids (amount is not null)
+        const validBids = auction.bids
+            .filter(b => b.amount !== null)
+            .sort((a, b) => (b.amount || 0) - (a.amount || 0)); // Sort Descending
+
+        //Determine Winner
+        let winnerId = null;
+        if (validBids.length > 0) {
+            winnerId = validBids[0].bidderId;
+        }
+
+        // 4. Update Auction State
+        const updatedAuction = await prisma.auction.update({
+            where: { id: Number(id) },
+            data: {
+                status: "CLOSED",
+                winnerId: winnerId
+            },
+            include: { winner: { select: { username: true } } }
+        });
+
+        res.json({
+            success: true,
+            winner: updatedAuction.winner?.username || "No valid bids",
+            winningAmount: validBids[0]?.amount || 0
+        });
+
+    } catch (error) {
+        console.error("Error closing auction:", error);
+        res.status(500).json({ error: 'Failed to close auction' });
+    }
+});
+
+const frontendPath = path.join(__dirname, "../public");
+app.use(express.static(frontendPath));
+
+app.get('*', (req, res) => {
+    if (req.path.startsWith('/api') || req.path.startsWith('/bid') || req.path.startsWith('/auctions')) {
+        return res.status(404).json({ error: "Not found" });
+    }
+    res.sendFile(path.join(frontendPath, "index.html"));
 });
 
 app.listen(PORT, () => {

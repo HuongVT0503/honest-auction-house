@@ -88,26 +88,79 @@ honest-auction-house/
 
 ## 🚀 How to Run Locally
 
-### 1. Backend (Server)
+Follow these steps to get the full system running on your machine.
+
+### Prerequisites
+- [Node.js](https://nodejs.org/) (v18+)
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (Recommended for Database)
+- OR a local PostgreSQL installation
+
+### 1. Start the Database
+If using Docker, run this in the root folder:
+```bash
+docker-compose up -d
+```
+This starts a Postgres DB on port 5432 with user admin and password password123.
+
+
+### 2. Setup Backend (Server)
 
 ```bash
 cd server
-# Ensure .env contains your DATABASE_URL
-npm install
-npm run dev
-# Server runs on http://localhost:3000
-```
 
-### 2. Frontend (Client)
+# 1. Install Dependencies
+npm install
+
+# 2. Setup Environment Variables
+# Create a .env file and paste the contents from .env.example
+# Ensure DATABASE_URL matches your local DB credentials.
+
+# 3. Initialize Database Schema
+npx prisma db push
+
+# 4. Start Server
+npm run dev
+```
+Server runs on: http://localhost:3000
+
+### 3. Setup Frontend (Client)
 
 ```bash
 cd client
+
+# 1. Install Dependencies
 npm install
+
+# 2. Move ZKP Artifacts (One-time setup)
+# For the app to verify proofs in the browser, it needs these files.
+# If they are missing, check the 'circuits' folder or compile them manually.
+# Ensure `bid_check.wasm` and `bid_check_final.zkey` are in `client/public/`
+
+# 3. Start React App
 npm run dev
-# App runs on http://localhost:5173
+```
+App runs on: http://localhost:5173
+
+### 4. Code Adjustments for Hybrid Mode
+Ensure your code gracefully handles both environments.
+
+**File:** `server/src/index.ts`
+Your CORS setup currently relies on an env var. Make sure it defaults to localhost if the env var is missing.
+```typescript
+app.use(cors({
+    origin: process.env.FRONTEND_URL || "http://localhost:5173", // Default to Vite's local port
+    methods: ["GET", "POST"],
+    credentials: true
+}));
+```
+File: client/src/App.tsx Ensure the API URL defaults to localhost if the Vite env var isn't set.
+```typescript
+// If VITE_API_URL is not set in .env, it defaults to localhost:3000
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 ```
 
-### 3. ZKP Circuits (Regeneration)
+
+### 5. ZKP Circuits (Regeneration)
 
 If you modify `.circom` files, you must recompile. Note: We are using the Windows binary for `circom`.
 
@@ -126,7 +179,18 @@ snarkjs zkey contribute bid_check_0000.zkey bid_check_final.zkey --name="YourNam
 # 4. Export Verification Key
 snarkjs zkey export verificationkey bid_check_final.zkey verification_key.json
 ```
+### 6. Final Check: The "Fresh Clone" Test
+To guarantee it works for others:
 
+Push all changes (including docker-compose.yml and .env.example) to GitHub.
+
+Go to a new folder on your computer.
+
+Run git clone <your-repo-url>.
+
+Follow your own README steps exactly.
+
+If you hit a snag (e.g., "Table not found"), add the missing step (e.g., npx prisma db push) to the README.
 ---
 
 ## 🔜 Next Steps
