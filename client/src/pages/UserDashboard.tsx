@@ -260,7 +260,10 @@ export default function UserDashboard() {
                                 <p>Status: <strong className={getStatusClass(auc.status)}>{auc.status}</strong></p>
 
                                 <button onClick={() => setSelectedAuction(auc)} className="mt-10 w-100">
-                                    {auc.status === "OPEN" ? "Place Bid" : "View Auction"}
+                                    {auc.seller.username === user?.username
+                                        ? "Manage Auction"
+                                        : (auc.status === "OPEN" ? "Place Bid" : "View Auction")
+                                    }
                                 </button>
                             </div>
                         ))}
@@ -301,7 +304,7 @@ export default function UserDashboard() {
                     <div className="bid-form">
 
                         {/* 1. BIDDING PHASE */}
-                        {selectedAuction.status === "OPEN" && (
+                        {selectedAuction.status === "OPEN" && selectedAuction.seller.username !== user?.username && (
                             <>
                                 <label className="text-left">Bid Amount (ETH)</label>
                                 <input

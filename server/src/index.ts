@@ -242,6 +242,10 @@ app.post('/bid', authenticateToken, async (req: AuthRequest, res) => {
             return res.status(404).json({ error: "Auction not found" });
         }
 
+        if (auction.sellerId === bidderId) {
+            return res.status(403).json({ error: "Sellers cannot bid on their own auctions." });
+        }
+
         if (new Date() > auction.biddingEndsAt || auction.status !== "OPEN") {
             return res.status(400).json({ error: "Auction has ended. No new bids allowed." });
         }
