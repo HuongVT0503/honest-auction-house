@@ -21,7 +21,7 @@ export interface BidHistory {
     id: number;
     amount: number | null;
     commitment: string;
-    auction: { title: string };
+    auction: {id: number; title: string };
     bidder?: { username: string };
     createdAt: string;
 }

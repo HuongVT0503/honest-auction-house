@@ -2,9 +2,91 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { useAuth } from "../context/AuthContext";
 import { generateBidProof } from "../lib/snark-utils";
 import AuctionTimer from "../components/AuctionTimer";
-import type { Auction, BidHistory, LocalBid } from "../types";
+import type { Auction, BidHistory, LocalBid, User } from "../types";
+
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
+type TabType = 'market' | 'selling' | 'bidding' | 'won';
+
+//sub components
+
+const SectionDivider = ({ title }: { title: string }) => (
+    <h4 className="mt-4 mb-2 text-sub section-divider">
+        {title}
+    </h4>
+);
+
+interface AuctionCardProps {
+    auction: Auction;
+    user: User | null;
+    onSelect: (auction: Auction) => void;
+    onPhaseChange: () => void;
+}
+
+const AuctionCard = ({ auction, user, onSelect, onPhaseChange }: AuctionCardProps) => {
+    const getStatusClass = (status: string) => {
+        switch (status) {
+            case 'OPEN': return 'status-badge status-open';
+            case 'REVEAL': return 'status-badge status-reveal';
+            default: return 'status-badge status-closed';
+        }
+    };
+
+    return (
+        <div className="auction-item">
+            <div className="auction-header">
+                <h3>{auction.title}</h3>
+                <span className={getStatusClass(auction.status)}>{auction.status}</span>
+            </div>
+            <div className="auction-meta mb-10">
+                <span className="mono-font">Seller: {auction.seller.username}</span>
+                <span>•</span>
+                <AuctionTimer
+                    createdAt={auction.createdAt}
+                    durationMinutes={auction.durationMinutes}
+                    status={auction.status}
+                    onPhaseChange={onPhaseChange}
+                />
+            </div>
+            {auction.winner && (
+                <div className="text-green text-sm mb-4">
+                    Winner: {auction.winner.username} ({auction.winningAmount} ETH)
+                </div>
+            )}
+            <button onClick={() => onSelect(auction)} className="w-100">
+                {auction.seller.username === user?.username
+                    ? "Manage Auction"
+                    : (auction.status === "OPEN" ? "Place Sealed Bid" : "View Details")
+                }
+            </button>
+        </div>
+    );
+};
+
+interface AuctionListProps {
+    list: Auction[];
+    emptyMsg: string;
+    user: User | null;
+    onSelect: (auction: Auction) => void;
+    onPhaseChange: () => void;
+}
+
+const AuctionList = ({ list, emptyMsg, user, onSelect, onPhaseChange }: AuctionListProps) => (
+    <div className="flex-column gap-4">
+        {list.length === 0 && <p className="text-muted">{emptyMsg}</p>}
+        {list.map(auc => (
+            <AuctionCard
+                key={auc.id}
+                auction={auc}
+                user={user}
+                onSelect={onSelect}
+                onPhaseChange={onPhaseChange}
+            />
+        ))}
+    </div>
+);
+
+////
 export default function UserDashboard() {
     const { user, token, logout } = useAuth();
     const [auctions, setAuctions] = useState<Auction[]>([]);
@@ -13,6 +95,7 @@ export default function UserDashboard() {
     const [amount, setAmount] = useState<number>(0);
     const [secret, setSecret] = useState<string>("");
     const [status, setStatus] = useState("Idle");
+    const [activeTab, setActiveTab] = useState<TabType>('market');
 
     const [newTitle, setNewTitle] = useState('');
     const [newDuration, setNewDuration] = useState(10);
@@ -62,13 +145,37 @@ export default function UserDashboard() {
 
         const interval = setInterval(() => {
             if (isMounted) fetchAuctions();
-        }, 10000);
+        }, 5000);
 
         return () => {
             isMounted = false;
             clearInterval(interval);
         };
     }, [fetchAuctions, fetchHistory]);
+
+    //derive data for tabs
+    const myAuctions = useMemo(() =>
+        auctions.filter(a => a.seller.username === user?.username),
+        [auctions, user]);
+
+    const wonAuctions = useMemo(() =>
+        auctions.filter(a => a.winner?.username === user?.username),
+        [auctions, user]);
+
+    const participatingAuctions = useMemo(() => {
+        const myBidAuctionIds = new Set(history.map(h => h.auction.id));
+        return auctions.filter(a =>
+            myBidAuctionIds.has(a.id) &&
+            a.seller.username !== user?.username &&
+            a.winner?.username !== user?.username
+        );
+    }, [auctions, history, user]);
+
+    const marketAuctions = useMemo(() =>
+        auctions.filter(a => a.status !== 'CLOSED'),
+        [auctions]);
+
+    //
 
     const createAuction = async () => {
         if (!newTitle) return alert("Title required");
@@ -232,17 +339,45 @@ KEEP THIS FILE SAFE! You need the Secret to reveal your bid.
             {!selectedAuction ? (
                 <div className="dashboard-grid">
 
-                    {/* Left Column: Active Auctions */}
+                    {/* Left Column: Tabbed Interface */}
                     <div className="card">
                         <div className="section-header">
-                            <h2>Active Auctions</h2>
-                            <button onClick={() => setIsCreating(!isCreating)}>
-                                {isCreating ? 'Cancel' : 'Create Auction'}
-                            </button>
+                            <div className="flex-row gap-2">
+                                <button
+                                    className={`btn-sm ${activeTab === 'market' ? 'primary-btn' : ''}`}
+                                    onClick={() => setActiveTab('market')}
+                                >
+                                    Market
+                                </button>
+                                <button
+                                    className={`btn-sm ${activeTab === 'selling' ? 'primary-btn' : ''}`}
+                                    onClick={() => setActiveTab('selling')}
+                                >
+                                    My Listings
+                                </button>
+                                <button
+                                    className={`btn-sm ${activeTab === 'bidding' ? 'primary-btn' : ''}`}
+                                    onClick={() => setActiveTab('bidding')}
+                                >
+                                    Participating
+                                </button>
+                                <button
+                                    className={`btn-sm ${activeTab === 'won' ? 'primary-btn' : ''}`}
+                                    onClick={() => setActiveTab('won')}
+                                >
+                                    Won
+                                </button>
+                            </div>
+
+                            {activeTab === 'selling' && (
+                                <button onClick={() => setIsCreating(!isCreating)}>
+                                    {isCreating ? 'Cancel' : '+ New'}
+                                </button>
+                            )}
                         </div>
 
-                        {/* Creation Form */}
-                        {isCreating && (
+                        {/* Creation Form (Only visible in selling tab) */}
+                        {isCreating && activeTab === 'selling' && (
                             <div className="create-auction-box">
                                 <h4 className="mb-10">Start New Auction</h4>
                                 <div className="bid-form">
@@ -268,39 +403,82 @@ KEEP THIS FILE SAFE! You need the Secret to reveal your bid.
                             </div>
                         )}
 
-                        {auctions.length === 0 && <p className="text-muted">No active auctions found.</p>}
+                        {/* TAB CONTENT */}
 
-                        {auctions.map(auc => (
-                            <div key={auc.id} className="auction-item">
-                                <div className="auction-header">
-                                    <h3>{auc.title}</h3>
-                                    <span className={getStatusClass(auc.status)}>{auc.status}</span>
-                                </div>
+                        {activeTab === 'market' && (
+                            <>
+                                <h3 className="mb-4">Active Market</h3>
+                                <AuctionList
+                                    list={marketAuctions}
+                                    emptyMsg="No active auctions found in the market."
+                                    user={user}
+                                    onSelect={setSelectedAuction}
+                                    onPhaseChange={fetchAuctions}
+                                />
+                            </>
+                        )}
 
-                                <div className="auction-meta mb-10">
-                                    <span className="mono-font">Seller: {auc.seller.username}</span>
-                                    <span>•</span>
-                                    <AuctionTimer
-                                        createdAt={auc.createdAt}
-                                        durationMinutes={auc.durationMinutes}
-                                        status={auc.status}
-                                        onPhaseChange={fetchAuctions}
-                                    />
-                                </div>
+                        {activeTab === 'selling' && (
+                            <>
+                                <SectionDivider title="Active Listings" />
+                                <AuctionList
+                                    list={myAuctions.filter(a => a.status !== 'CLOSED')}
+                                    emptyMsg="You have no active listings."
+                                    user={user}
+                                    onSelect={setSelectedAuction}
+                                    onPhaseChange={fetchAuctions}
+                                />
 
-                                <button onClick={() => setSelectedAuction(auc)} className="w-100">
-                                    {auc.seller.username === user?.username
-                                        ? "Manage Auction"
-                                        : (auc.status === "OPEN" ? "Place Sealed Bid" : "View Details")
-                                    }
-                                </button>
-                            </div>
-                        ))}
+                                <SectionDivider title="Past Listings (Closed)" />
+                                <AuctionList
+                                    list={myAuctions.filter(a => a.status === 'CLOSED')}
+                                    emptyMsg="No closed listings."
+                                    user={user}
+                                    onSelect={setSelectedAuction}
+                                    onPhaseChange={fetchAuctions}
+                                />
+                            </>
+                        )}
+
+                        {activeTab === 'bidding' && (
+                            <>
+                                <SectionDivider title="Active Bids" />
+                                <AuctionList
+                                    list={participatingAuctions.filter(a => a.status !== 'CLOSED')}
+                                    emptyMsg="You are not bidding on any active auctions."
+                                    user={user}
+                                    onSelect={setSelectedAuction}
+                                    onPhaseChange={fetchAuctions}
+                                />
+
+                                <SectionDivider title="Past Participation" />
+                                <AuctionList
+                                    list={participatingAuctions.filter(a => a.status === 'CLOSED')}
+                                    emptyMsg="No past auction history."
+                                    user={user}
+                                    onSelect={setSelectedAuction}
+                                    onPhaseChange={fetchAuctions}
+                                />
+                            </>
+                        )}
+
+                        {activeTab === 'won' && (
+                            <>
+                                <h3 className="mb-4 text-green">🏆 Won Auctions</h3>
+                                <AuctionList
+                                    list={wonAuctions}
+                                    emptyMsg="You haven't won any auctions yet."
+                                    user={user}
+                                    onSelect={setSelectedAuction}
+                                    onPhaseChange={fetchAuctions}
+                                />
+                            </>
+                        )}
                     </div>
 
-                    {/* Right Column: History */}
+                    {/* Right Column: Recent Activity Log */}
                     <div className="card">
-                        <h3 className="mb-10">My Bid History</h3>
+                        <h3 className="mb-10">Recent Activity</h3>
                         <div className="history-list">
                             {history.length === 0 && <p className="text-muted">No bids placed yet.</p>}
                             {history.map(bid => (
@@ -328,7 +506,7 @@ KEEP THIS FILE SAFE! You need the Secret to reveal your bid.
                         onClick={() => { setSelectedAuction(null); setStatus("Idle"); }}
                         className="btn-text mb-10"
                     >
-                        ← Back to List
+                        ← Back to Dashboard
                     </button>
 
                     <h2 className="font-large mb-2">{selectedAuction.title}</h2>

@@ -405,3 +405,8 @@ button[type="submit"]:hover {
   font-size: 0.8rem;
   color: var(--text-muted);
 }
+
+.section-divider {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.5rem;
+}
