@@ -25,4 +25,4 @@ template BidCheck() {
 }
 
 //auctionId must be public->verifier(server) knows which auction this is for
-component main {public [commitment, auctionId]} = BidCheck();
+component main {public [auctionId, commitment]} = BidCheck();
