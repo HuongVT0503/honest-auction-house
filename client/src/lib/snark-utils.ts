@@ -17,6 +17,19 @@ export async function generateBidProof(amount: number, secret: string, auctionId
         throw new Error("The Secret must be a NUMBER.");
     }
 
+    //range check
+    //Number.MAX_SAFE_INTEGER (2^53 - 1)
+    //circuit supports up to 2^64 - 1
+    if (amount < 0) {
+        throw new Error("Amount cannot be negative.");
+    }
+    if (!Number.isInteger(amount)) {
+        throw new Error("Amount must be a whole number.");
+    }
+    if (amount > Number.MAX_SAFE_INTEGER) {
+        throw new Error("Amount is too large (unsafe for browser JS).");
+    }
+
     //initialize Poseidon Hash (Async)
     const poseidon = await buildPoseidon();
 

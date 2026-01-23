@@ -89,6 +89,18 @@ honest-auction-house/
 - **UX Feedback:** Added immediate list refreshing upon successful bid revelation to visually confirm actions.
 - **Documentation:** Added State Diagrams to complement Sequence Diagrams.
 
+### ✅ Phase 7: Security Hardening (Replay Attack Prevention)
+
+- **Circuit Upgrade:** Modified `bid_check.circom` to include `auctionId` as a public input.
+- **Proof Binding:** The Poseidon hash now calculates `Hash(amount, secret, auctionId)`, ensuring a proof generated for Auction A cannot be replayed on Auction B.
+- **Backend Verification:** Updated `POST /bid` and `POST /bid/reveal` to strictly validate that the proof's public signals match the target auction ID before acceptance.
+
+### ✅ Phase 8: Critical Security Fix (Negative Bid Prevention)
+
+- **Vulnerability Patch:** Addressed the "Negative Bid" exploit where finite field wrapping allowed malicious negative values (e.g., `-1`) to be interpreted as massive positive integers by the circuit.
+- **Circuit Update:** Implemented `Num2Bits(64)` range check in `bid_check.circom` to strictly enforce that the `amount` fits within 64 bits.
+- **Client Validation:** Updated `snark-utils.ts` to reject negative numbers, non-integers, and unsafe JavaScript integers before proof generation attempts.
+- **Verification Script:** Added `test_negative_bid.js` to cryptographically prove the circuit rejects invalid field elements that bypass UI checks.
 ---
 
 ## 🚀 How to Run Locally
@@ -126,7 +138,11 @@ npm install
 # 3. Initialize Database Schema
 npx prisma db push
 
-# 4. Start Server
+# 4. Verification Key Setup
+# Ensure `verification_key.json` is present in `server/src/`
+# (This file is generated from the circuits folder)
+
+# 5. Start Server
 npm run dev
 ```
 
@@ -193,6 +209,14 @@ snarkjs zkey contribute bid_check_0000.zkey bid_check_final.zkey --name="YourNam
 
 # 4. Export Verification Key
 snarkjs zkey export verificationkey bid_check_final.zkey verification_key.json
+
+# 5. Move Artifacts
+# Client needs these to generate proofs:
+mv bid_check.wasm ../client/public/
+mv bid_check_final.zkey ../client/public/
+
+# Server needs this to verify proofs:
+mv verification_key.json ../server/src/
 ```
 
 ---
@@ -215,15 +239,16 @@ sequenceDiagram
 
     rect rgb(240, 248, 255)
         Note right of Client: 🔒 Privacy happens here
-        Client->>Client: Calculate Hash(10, 12345) ➔ "0xABC..."
-        Client->>Client: Generate ZK Proof<br/>(Private: 10, 12345 | Public: "0xABC...")
+        Client->>Client: Fetch Auction ID (e.g., 99)
+        Client->>Client: Calculate Hash(10, 12345, 99) ➔ "0xABC..."
+        Client->>Client: Generate ZK Proof<br/>(Private: 10, 12345 | Public: "0xABC...", 99)
     end
 
-    Client->>Server: POST /bid<br/>{ proof, commitment: "0xABC..." }
+    Client->>Server: POST /bid<br/>{ proof, commitment: "0xABC...", auctionId: 99 }
 
-    Server->>Server: Verify Proof using Verification Key
-    alt Proof Invalid
-        Server-->>Client: ❌ Error: Integrity Check Failed
+    Server->>Server: Verify Proof & Check AuctionID Binding
+    alt Proof Invalid / Wrong Auction
+        Server-->>Client: ❌ Error: Integrity Check or Replay Attack Failed
     else Proof Valid
         Server->>DB: INSERT Bid (Commitment="0xABC...", Amount=NULL)
         Server-->>Client: ✅ Bid Placed (Values Hidden)
@@ -234,14 +259,14 @@ sequenceDiagram
     Note over User, DB: 🔓 PHASE 2: REVEAL
 
     User->>Client: Clicks "Reveal" (Loads saved Secret)
-    Client->>Server: POST /bid/reveal<br/>{ amount: 10, secret: 12345 }
+    Client->>Server: POST /bid/reveal<br/>{ amount: 10, secret: 12345, auctionId: 99 }
 
     Server->>DB: GET Bid by UserID
     DB-->>Server: Returns stored Commitment "0xABC..."
 
     rect rgb(255, 240, 245)
         Note left of Server: 🔍 Verification logic
-        Server->>Server: Re-calculate Hash(10, 12345)
+        Server->>Server: Re-calculate Hash(10, 12345, 99)
         Server->>Server: Check if Calculated Hash == Stored "0xABC..."
     end
 
