@@ -91,7 +91,7 @@
 }
 
 .btn-close-auction {
-  background-color: #8e44ad; 
+  background-color: #8e44ad;
   color: white;
 }
 
@@ -104,22 +104,50 @@
   color: white;
 }
 
-.mt-10 { margin-top: 10px; }
-.mt-20 { margin-top: 20px; }
-.mb-10 { margin-bottom: 10px; }
-.mb-20 { margin-bottom: 20px; }
-.w-100 { width: 100%; }
-.flex-1 { flex: 1; }
-.text-left { text-align: left; }
-.text-sub { color: #888; }
-.text-grey { color: #666; }
+.mt-10 {
+  margin-top: 10px;
+}
+.mt-20 {
+  margin-top: 20px;
+}
+.mb-10 {
+  margin-bottom: 10px;
+}
+.mb-20 {
+  margin-bottom: 20px;
+}
+.w-100 {
+  width: 100%;
+}
+.flex-1 {
+  flex: 1;
+}
+.text-left {
+  text-align: left;
+}
+.text-sub {
+  color: #888;
+}
+.text-grey {
+  color: #666;
+}
 
 /* Status Colors */
-.status-open { color: #2ecc71; }
-.status-reveal { color: #e67e22; }
-.status-closed { color: #95a5a6; }
-.text-green { color: #2ecc71; }
-.text-gold { color: #f1c40f; }
+.status-open {
+  color: #2ecc71;
+}
+.status-reveal {
+  color: #e67e22;
+}
+.status-closed {
+  color: #95a5a6;
+}
+.text-green {
+  color: #2ecc71;
+}
+.text-gold {
+  color: #f1c40f;
+}
 
 /* Login */
 .btn-transparent {
@@ -183,7 +211,6 @@
   font-size: 0.9em;
 }
 
-/* Single View */
 .single-view-container {
   max-width: 600px;
   margin: 0 auto;
@@ -201,4 +228,95 @@
   background: #1a1a1a;
   border-radius: 4px;
   min-height: 40px;
+}
+
+.admin-nav {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.admin-nav button.active {
+  background-color: #d35400; /* Orange/Reveal color for active tab */
+  border-color: #e67e22;
+}
+
+.btn-danger {
+  background-color: darkred;
+  color: white;
+}
+
+.admin-table {
+  width: 100%;
+  text-align: left;
+  border-collapse: collapse;
+}
+
+.admin-table th,
+.admin-table td {
+  padding: 8px;
+  border-bottom: 1px solid #444;
+}
+
+.commit-hash {
+  font-size: 0.8em;
+  background: #333;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+
+.timer-text {
+  margin-left: 10px;
+  font-size: 0.9em;
+}
+
+.timer-mono {
+  font-family: monospace;
+}
+
+.auction-timer-container {
+  margin-left: 10px;
+  font-size: 0.9em;
+}
+
+.mono-font {
+  font-family: monospace;
+}
+
+.dashed-border {
+  margin-bottom: 20px;
+  border: 1px dashed #666;
+  padding: 10px;
+}
+
+.btn-disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-active {
+  opacity: 1;
+  cursor: pointer;
+}
+
+
+.header-active-auctions {
+  margin-bottom: 1rem;
+}
+
+.create-auction-box {
+  margin-bottom: 20px;
+  border: 1px dashed #666;
+  padding: 10px;
+}
+
+.btn-close-auction:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.warning-text-orange {
+  display: block;
+  margin-top: 5px;
+  color: orange;
 }

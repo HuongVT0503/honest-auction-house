@@ -29,6 +29,17 @@ async function getPoseidonHash(amount: any, secret: any, auctionId: any) {
     return poseidon.F.toString(hashBytes);
 }
 
+const calculatePhases = (createdAt: Date, durationMinutes: number) => {
+    const totalMs = durationMinutes * 60 * 1000;
+    const biddingMs = totalMs * 0.9; //90% time for bidding
+    const revealMs = totalMs * 0.1;  //10% time for reveal
+
+    const biddingEnd = new Date(createdAt.getTime() + biddingMs);
+    const auctionEnd = new Date(createdAt.getTime() + totalMs);
+
+    return { biddingEnd, auctionEnd };
+};
+
 //AUTH ROUTES
 
 app.post('/register', async (req, res) => {
@@ -66,22 +77,44 @@ app.post('/login', async (req, res) => {
 
 //ADMIN ROUTES
 
-//create auction 
-app.post('/auctions', authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
+app.get('/admin/users', authenticateToken, requireAdmin, async (req, res) => {
     try {
-        const { title, description, durationMinutes } = req.body;
-        // sellerId is the logged-in admin
-        const sellerId = req.user!.userId;
-
-        const endsAt = new Date();
-        endsAt.setMinutes(endsAt.getMinutes() + durationMinutes);
-
-        const auction = await prisma.auction.create({
-            data: { title, description, sellerId, endsAt, status: "OPEN" }
+        const users = await prisma.user.findMany({
+            select: { id: true, username: true, role: true, createdAt: true }
         });
-        res.json(auction);
+        res.json(users);
+    } catch (e) { res.status(500).json({ error: "Fetch failed" }); }
+});
+
+app.get('/admin/bids', authenticateToken, requireAdmin, async (req, res) => {
+    try {
+        const bids = await prisma.bid.findMany({
+            include: {
+                bidder: { select: { username: true } },
+                auction: { select: { title: true } }
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+        res.json(bids);
+    } catch (e) { res.status(500).json({ error: "Fetch failed" }); }
+});
+
+app.post('/admin/reset', async (req, res) => {
+    try {
+        const { password } = req.body;
+        if (password !== "admin_reset_123") {
+            return res.status(403).json({ error: "Unauthorized" });
+        }
+
+        await prisma.bid.deleteMany({});
+        await prisma.auction.deleteMany({});
+        //?keeop users
+        // await prisma.user.deleteMany({}); 
+
+        res.json({ success: true, message: "All auctions and bids wiped." });
     } catch (error) {
-        res.status(500).json({ error: 'Failed to create auction' });
+        console.error("Reset failed:", error);
+        res.status(500).json({ error: "Failed to reset database" });
     }
 });
 
@@ -122,26 +155,65 @@ app.get('/me/bids', authenticateToken, async (req: AuthRequest, res) => {
 
 //AUCTION ROUTES
 
+//create auction 
+app.post('/auctions', authenticateToken, async (req: AuthRequest, res) => {
+    try {
+        const { title, description, durationMinutes } = req.body;
+        // sellerId is the logged-in admin
+        const sellerId = req.user!.userId;
+        const duration = Number(durationMinutes) || 10;
+
+        //end of bidding phase
+        const now = new Date();
+        const { biddingEnd } = calculatePhases(now, duration);
+
+        const auction = await prisma.auction.create({
+            data: {
+                title,
+                description,
+                sellerId,
+                durationMinutes: duration,
+                biddingEndsAt: biddingEnd,
+                status: "OPEN"
+            }
+        });
+        res.json(auction);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to create auction' });
+    }
+});
+
 //list all open auctions
 app.get('/auctions', async (req, res) => {
     try {
         const now = new Date();
-
-        //LAZY UPDATE: auto flip expired OPEN auctions to REVEAL
-        //runs every time s.o loads the dashboard
-        await prisma.auction.updateMany({
-            where: {
-                status: "OPEN",
-                endsAt: { lte: now }
-            },
-            data: {
-                status: "REVEAL"
-            }
+        const activeAuctions = await prisma.auction.findMany({
+            where: { status: { not: "CLOSED" } }
         });
 
-        //fetch the updated list
+        //lazy update
+        for (const auction of activeAuctions) {
+            const { biddingEnd, auctionEnd } = calculatePhases(auction.createdAt, auction.durationMinutes);
+
+            //Open -> Reveal
+            if (auction.status === "OPEN" && now >= biddingEnd) {
+                await prisma.auction.update({
+                    where: { id: auction.id },
+                    data: { status: "REVEAL" }
+                });
+            }
+
+            //Reveal -> Closed
+            if (auction.status === "REVEAL" && now >= auctionEnd) {
+                await prisma.auction.update({
+                    where: { id: auction.id },
+                    data: { status: "CLOSED" }
+                });
+            }
+        }
+
+        //get fresh list
         const auctions = await prisma.auction.findMany({
-            where: { OR: [{ status: "OPEN" }, { status: "REVEAL" }] },
             orderBy: { createdAt: 'desc' },
             include: { seller: { select: { username: true } } }
         });
@@ -167,7 +239,7 @@ app.post('/bid', authenticateToken, async (req: AuthRequest, res) => {
             return res.status(404).json({ error: "Auction not found" });
         }
 
-        if (new Date() > auction.endsAt || auction.status !== "OPEN") {
+        if (new Date() > auction.biddingEndsAt || auction.status !== "OPEN") {
             return res.status(400).json({ error: "Auction has ended. No new bids allowed." });
         }
 
@@ -216,7 +288,13 @@ app.post('/bid/reveal', async (req, res) => {
     try {
         const { auctionId, bidderId, amount, secret } = req.body;
 
-        //find the sealed bid using composite key
+        try {
+            BigInt(amount);
+            BigInt(secret);
+        } catch (e) {
+            return res.status(400).json({ error: "Invalid input: Amount and Secret must be numeric strings." });
+        }
+
         const bid = await prisma.bid.findUnique({
             where: {
                 auctionId_bidderId: {
@@ -225,7 +303,7 @@ app.post('/bid/reveal', async (req, res) => {
                 }
             }
         });
-
+        
         if (!bid) return res.status(404).json({ error: "Bid not found" });
         if (bid.amount !== null) return res.status(400).json({ error: "Already revealed" });
 
@@ -305,24 +383,6 @@ app.post('/auctions/:id/close', async (req, res) => {
 });
 
 
-app.post('/admin/reset', async (req, res) => {
-    try {
-        const { password } = req.body;
-        if (password !== "admin_reset_123") {
-            return res.status(403).json({ error: "Unauthorized" });
-        }
-
-        await prisma.bid.deleteMany({});
-        await prisma.auction.deleteMany({});
-        //?keeop users
-        // await prisma.user.deleteMany({}); 
-
-        res.json({ success: true, message: "All auctions and bids wiped." });
-    } catch (error) {
-        console.error("Reset failed:", error);
-        res.status(500).json({ error: "Failed to reset database" });
-    }
-});
 const frontendPath = path.join(__dirname, "../public");
 app.use(express.static(frontendPath));
 

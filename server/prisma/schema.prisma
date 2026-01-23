@@ -28,7 +28,9 @@ model Auction {
   title       String
   description String?
   status      AuctionStatus @default(OPEN)
-  endsAt      DateTime
+
+  durationMinutes Int       @default(10) //total duratiom
+  biddingEndsAt   DateTime          //open phase
   
   sellerId    Int
   seller      User          @relation("SellerAuctions", fields: [sellerId], references: [id])
