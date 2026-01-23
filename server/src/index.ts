@@ -63,6 +63,56 @@ async function finalizeAuction(auctionId: number) {
             winningAmount: winningAmount
         }
     });
+    console.log(`Auction #${auctionId} finalized. Winner: ${winnerId || 'None'}`);
+}
+
+async function updateAuctionStatuses() {
+    try {
+        const now = new Date();
+        //fetch non-closed auctions
+        const activeAuctions = await prisma.auction.findMany({
+            where: { status: { not: "CLOSED" } }
+        });
+
+        for (const auction of activeAuctions) {
+            const { biddingEnd, auctionEnd } = calculatePhases(auction.createdAt, auction.durationMinutes);
+
+            if (auction.status === "OPEN" && now >= auctionEnd) {
+                console.log(`⚠️ Auction #${auction.id}: Server missed Reveal Phase. Triggering Emergency Extension.`);
+
+                //10m from NOW to reveal
+                const ageInMs = now.getTime() - new Date(auction.createdAt).getTime();
+                const ageInMinutes = Math.ceil(ageInMs / 60000);
+                const newDuration = ageInMinutes + 10; //+10 m
+
+                await prisma.auction.update({
+                    where: { id: auction.id },
+                    data: {
+                        status: "REVEAL", //force Reveal mode
+                        durationMinutes: newDuration
+                    }
+                });
+                continue;
+            }
+
+            //OPEN -> REVEAL
+            if (auction.status === "OPEN" && now >= biddingEnd) {
+                console.log(`🕒 Auction #${auction.id}: Bidding ended. Switching to REVEAL.`);
+                await prisma.auction.update({
+                    where: { id: auction.id },
+                    data: { status: "REVEAL" }
+                });
+            }
+
+            //REVEAL -> CLOSED
+            if ((auction.status === "REVEAL" || auction.status === "OPEN") && now >= auctionEnd) {
+                console.log(`🏁 Auction #${auction.id}: Time expired. Closing.`);
+                await finalizeAuction(auction.id);
+            }
+        }
+    } catch (error) {
+        console.error("❌ Error in background status check:", error);
+    }
 }
 
 
@@ -419,86 +469,6 @@ app.post('/auctions/:id/extend', authenticateToken, async (req: AuthRequest, res
     }
 });
 
-// app.post('/auctions/:id/close', async (req, res) => {
-//     try {
-//         const { id } = req.params;
-
-//         //fetch auction and revealed bids
-//         const auction = await prisma.auction.findUnique({
-//             where: { id: Number(id) },
-//             include: { bids: true }
-//         });
-
-//         if (!auction) return res.status(404).json({ error: "Auction not found" });
-
-//         if (auction.status === "CLOSED" && auction.winnerId !== null) {
-//             return res.json({
-//                 success: true,
-//                 message: "Auction already finalized",
-//                 winner: auction.winningAmount
-//             });
-//         }
-
-//         const { biddingEnd } = calculatePhases(new Date(auction.createdAt), auction.durationMinutes);
-//         if (new Date() < biddingEnd) {
-//             return res.status(400).json({ error: "Too early to close. Wait for bidding to end." });
-//         }
-
-//         if (auction.bids.length === 0) {
-//             await prisma.auction.update({
-//                 where: { id: Number(id) },
-//                 data: {
-//                     status: "CLOSED",
-//                     winnerId: null
-//                 }
-//             });
-
-//             return res.json({
-//                 success: true,
-//                 message: "Auction closed. No bids were placed.",
-//                 winner: null,
-//                 winningAmount: 0
-//             });
-//         }
-
-//         //filter for VALID REVEALED bids (amount is not null)
-//         const validBids = auction.bids
-//             .filter(b => b.amount !== null)
-//             .sort((a, b) => (b.amount || 0) - (a.amount || 0)); // Sort Descending
-
-//         //Determine Winner
-//         let winnerId = null;
-//         let winningAmount = 0;
-
-//         if (validBids.length > 0) {
-//             winnerId = validBids[0].bidderId;
-//             winningAmount = validBids[0].amount || 0;
-//         }
-
-//         // 4. Update Auction State
-//         const updatedAuction = await prisma.auction.update({
-//             where: { id: Number(id) },
-//             data: {
-//                 status: "CLOSED",
-//                 winnerId: winnerId,
-//                 winningAmount: winningAmount
-//             },
-//             include: { winner: { select: { username: true } } }
-//         });
-
-//         res.json({
-//             success: true,
-//             winner: updatedAuction.winner?.username || "No valid bids",
-//             winningAmount: updatedAuction.winningAmount
-//         });
-
-//     } catch (error) {
-//         console.error("Error closing auction:", error);
-//         res.status(500).json({ error: 'Failed to close auction' });
-//     }
-// });
-
-
 const frontendPath = path.join(__dirname, "public");
 app.use(express.static(frontendPath));
 
@@ -511,4 +481,9 @@ app.get(/.*/, (req, res) => {
 
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
+
+    updateAuctionStatuses();
+
+    setInterval(updateAuctionStatuses, 60 * 1000);//1m
+    console.log("⏱️ Background auction status checker started (Interval: 60s)");
 });
