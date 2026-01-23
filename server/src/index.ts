@@ -244,9 +244,8 @@ app.post('/bid', authenticateToken, async (req: AuthRequest, res) => {
         }
 
         //REPLAY ATTACK
-        //publicSignals[0] = commitment
-        //publicSignals[1] = auctionId
-        const proofAuctionId = publicSignals[1];
+        const proofAuctionId = publicSignals[0]; 
+        const commitment = publicSignals[1];
 
         //verify proof was gen specifically for THIS auction
         if (proofAuctionId !== String(auctionId)) {
@@ -262,7 +261,7 @@ app.post('/bid', authenticateToken, async (req: AuthRequest, res) => {
             return;
         }
 
-        const commitment = publicSignals[0];
+        //const commitment = publicSignals[0];
 
         //save commitment
         //NOT save the amount or secret yet. Just the hash.
@@ -303,7 +302,7 @@ app.post('/bid/reveal', async (req, res) => {
                 }
             }
         });
-        
+
         if (!bid) return res.status(404).json({ error: "Bid not found" });
         if (bid.amount !== null) return res.status(400).json({ error: "Already revealed" });
 
@@ -383,7 +382,7 @@ app.post('/auctions/:id/close', async (req, res) => {
 });
 
 
-const frontendPath = path.join(__dirname, "../public");
+const frontendPath = path.join(__dirname, "public");
 app.use(express.static(frontendPath));
 
 app.get(/(.*)/, (req, res) => {
