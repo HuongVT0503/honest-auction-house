@@ -30,14 +30,17 @@ export default function UserDashboard() {
             const data = await res.json();
             setAuctions(data);
 
-            if (selectedAuction) {
-                const fresh = data.find((a: Auction) => a.id === selectedAuction.id);
-                if (fresh) setSelectedAuction(fresh);
-            }
+            setSelectedAuction(currentSelected => {
+                if (!currentSelected) return null;
+
+                const fresh = data.find((a: Auction) => a.id === currentSelected.id);
+                return fresh || currentSelected;
+            });
+
         } catch (e) {
             console.error("Failed to fetch auctions", e);
         }
-    }, [authHeaders, selectedAuction]);
+    }, [authHeaders]); // You can also remove 'selectedAuction' from the dependency array now
 
     const fetchHistory = useCallback(async () => {
         try {
