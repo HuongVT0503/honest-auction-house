@@ -1,0 +1,10 @@
+
+HONEST AUCTION BACKUP
+---------------------
+Auction: cat fur (ID: 1)
+Amount: 80 ETH
+Secret: 9411
+Commitment: 11768832413508180940406201086354176092224668265899627631069190244700210422461
+
+KEEP THIS FILE SAFE! You need the Secret to reveal your bid.
+            

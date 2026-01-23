@@ -325,3 +325,10 @@
   font-weight: bold;
   margin-top: 10px;
 }
+
+.auction-title-timer {
+  font-size: 0.6em;
+  margin-left: 15px;
+  display: block;
+  color: #888; 
+}

@@ -319,9 +319,18 @@ KEEP THIS FILE SAFE! You need the Secret to reveal your bid.
                         ← Back to List
                     </button>
 
-                    <h2>{selectedAuction.title}</h2>
-                    <p>Current Phase: <strong>{selectedAuction.status}</strong></p>
-
+                    <h2>
+                        {selectedAuction.title}
+                        <span className="auction-title-timer">
+                            <AuctionTimer
+                                createdAt={selectedAuction.createdAt}
+                                durationMinutes={selectedAuction.durationMinutes}
+                                status={selectedAuction.status}
+                                onPhaseChange={fetchAuctions}
+                            />
+                        </span>
+                    </h2>
+                    <p>Current Phase: <strong className={getStatusClass(selectedAuction.status)}>{selectedAuction.status}</strong></p>
                     <div className="bid-form">
 
                         {/* 1. BIDDING PHASE */}
@@ -422,16 +431,19 @@ KEEP THIS FILE SAFE! You need the Secret to reveal your bid.
                             <button
                                 onClick={handleCloseAuction}
                                 className="btn-close-auction w-100"
-                                disabled={selectedAuction.status === 'CLOSED' && !!selectedAuction.winner}
+                                disabled={
+                                    (selectedAuction.status === 'CLOSED' && !!selectedAuction.winner) ||
+                                    selectedAuction.status === 'OPEN'
+                                }
                             >
-                                {selectedAuction.status === 'OPEN' ? "Wait for Reveal Phase (or Force Close)" :
+                                {selectedAuction.status === 'OPEN' ? "Bidding in Progress (Wait for Reveal)" :
                                     selectedAuction.status === 'REVEAL' ? "🏆 End Auction & Pick Winner" :
                                         !selectedAuction.winner ? "⚠ Finalize Winner (Status Stuck)" :
                                             "✅ Auction Finalized"}
                             </button>
                             {selectedAuction.status === 'OPEN' && (
-                                <small className="warning-text-orange">
-                                    (Warning: Closing now skips Reveal phase)
+                                <small className="text-gray">
+                                    (You must wait for the bidding timer to end before closing)
                                 </small>
                             )}
                         </div>
