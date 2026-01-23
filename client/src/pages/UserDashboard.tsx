@@ -3,7 +3,6 @@ import { useAuth } from "../context/AuthContext";
 import { generateBidProof } from "../lib/snark-utils";
 import AuctionTimer from "../components/AuctionTimer";
 import type { Auction, BidHistory, LocalBid } from "../types";
-
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
 export default function UserDashboard() {
@@ -32,7 +31,6 @@ export default function UserDashboard() {
 
             setSelectedAuction(currentSelected => {
                 if (!currentSelected) return null;
-
                 const fresh = data.find((a: Auction) => a.id === currentSelected.id);
                 return fresh || currentSelected;
             });
@@ -40,7 +38,7 @@ export default function UserDashboard() {
         } catch (e) {
             console.error("Failed to fetch auctions", e);
         }
-    }, [authHeaders]); // You can also remove 'selectedAuction' from the dependency array now
+    }, [authHeaders]);
 
     const fetchHistory = useCallback(async () => {
         try {
@@ -74,7 +72,6 @@ export default function UserDashboard() {
 
     const createAuction = async () => {
         if (!newTitle) return alert("Title required");
-
         try {
             await fetch(`${API_URL}/auctions`, {
                 method: 'POST',
@@ -111,7 +108,6 @@ export default function UserDashboard() {
             const data = await res.json();
             if (res.ok) {
                 setStatus(`Bid Placed! Commitment: ${data.commitment.slice(0, 10)}...`);
-
                 const storageKey = `bids_${selectedAuction.id}_${user.id}`;
 
                 let existingBids: LocalBid[] = [];
@@ -128,8 +124,6 @@ export default function UserDashboard() {
                     commitment: data.commitment,
                     timestamp: Date.now()
                 };
-
-
                 existingBids.push(newBid);
                 localStorage.setItem(storageKey, JSON.stringify(existingBids));
 
@@ -212,52 +206,11 @@ KEEP THIS FILE SAFE! You need the Secret to reveal your bid.
         }
     };
 
-    // const handleCloseAuction = async () => {
-    //     if (!selectedAuction) return;
-
-    //     if (selectedAuction.status === 'CLOSED' && selectedAuction.winner) {
-    //         setStatus("Auction is already closed.");
-    //         return;
-    //     }
-
-    //     // if trying to close during OPEN phase (skips reveal)
-    //     if (selectedAuction.status === 'OPEN') {
-    //         if (!confirm("Warning: Closing now will skip the Reveal phase and no bids will be valid. Are you sure?")) {
-    //             return;
-    //         }
-    //     }
-
-    //     setStatus("Closing Auction...");
-    //     try {
-    //         const res = await fetch(`${API_URL}/auctions/${selectedAuction.id}/close`, {
-    //             method: "POST",
-    //             headers: authHeaders,
-    //         });
-    //         const data = await res.json();
-    //         if (res.ok) {
-    //             const winnerMsg = data.winner
-    //                 ? `Winner: ${data.winner} ($${data.winningAmount})`
-    //                 : "No valid bids revealed.";
-
-    //             setStatus(`Auction Closed! ${winnerMsg}`);
-
-    //             // Immediately update local state to reflect change without waiting for re-fetch
-    //             setSelectedAuction(prev => prev ? { ...prev, status: 'CLOSED' } : null);
-    //             fetchAuctions();
-    //         } else {
-    //             setStatus(`Error: ${data.error}`);
-    //         }
-    //     } catch (e) {
-    //         console.error(e);
-    //         setStatus("Failed to close auction.");
-    //     }
-    // };
-
     const getStatusClass = (status: string) => {
         switch (status) {
-            case 'OPEN': return 'status-open';
-            case 'REVEAL': return 'status-reveal';
-            default: return 'status-closed';
+            case 'OPEN': return 'status-badge status-open';
+            case 'REVEAL': return 'status-badge status-reveal';
+            default: return 'status-badge status-closed';
         }
     };
 
@@ -267,10 +220,10 @@ KEEP THIS FILE SAFE! You need the Secret to reveal your bid.
             <header className="dashboard-header">
                 <div>
                     <h1 className="header-title">Honest Auction House</h1>
-                    <span className="text-sub">User Dashboard</span>
+                    <span className="text-sub">ZKP Privacy-Preserving Bidding</span>
                 </div>
                 <div className="header-user">
-                    <span>Welcome, <strong>{user?.username}</strong></span>
+                    <span className="mr-4">@{user?.username}</span>
                     <button onClick={logout} className="btn-logout">Logout</button>
                 </div>
             </header>
@@ -281,72 +234,88 @@ KEEP THIS FILE SAFE! You need the Secret to reveal your bid.
 
                     {/* Left Column: Active Auctions */}
                     <div className="card">
-                        <div className="auction-header header-active-auctions">
+                        <div className="section-header">
                             <h2>Active Auctions</h2>
                             <button onClick={() => setIsCreating(!isCreating)}>
-                                {isCreating ? 'Cancel' : '+ Create Auction'}
+                                {isCreating ? 'Cancel' : 'Create Auction'}
                             </button>
                         </div>
 
                         {/* Creation Form */}
                         {isCreating && (
-                            <div className="bid-form create-auction-box">
-                                <h4>New Auction</h4>
-                                <input placeholder="Title" value={newTitle} onChange={e => setNewTitle(e.target.value)} />
-                                <label>Duration (Minutes):
-                                    <input type="number" value={newDuration} onChange={e => setNewDuration(Number(e.target.value))} />
-                                </label>
-                                <small className="text-sub">Bidding: {newDuration * 0.9}m | Reveal: {newDuration * 0.1}m</small>
-                                <button onClick={createAuction}>Start Auction</button>
+                            <div className="create-auction-box">
+                                <h4 className="mb-10">Start New Auction</h4>
+                                <div className="bid-form">
+                                    <input
+                                        placeholder="Item Title"
+                                        value={newTitle}
+                                        onChange={e => setNewTitle(e.target.value)}
+                                        aria-label="Auction Item Title"
+                                    />
+                                    <div>
+                                        <label>Duration (Minutes)</label>
+                                        <input
+                                            type="number"
+                                            placeholder="Duration"
+                                            value={newDuration}
+                                            onChange={e => setNewDuration(Number(e.target.value))}
+                                            aria-label="Auction Duration"
+                                        />
+                                    </div>
+                                    <small className="text-sub">Bidding: {newDuration * 0.9}m | Reveal: {newDuration * 0.1}m</small>
+                                    <button onClick={createAuction} className="primary-btn">Launch Auction</button>
+                                </div>
                             </div>
                         )}
 
-                        {auctions.length === 0 && <p>No active auctions found.</p>}
+                        {auctions.length === 0 && <p className="text-muted">No active auctions found.</p>}
+
                         {auctions.map(auc => (
                             <div key={auc.id} className="auction-item">
                                 <div className="auction-header">
-                                    <h3>
-                                        {auc.title}
-                                        <AuctionTimer
-                                            createdAt={auc.createdAt}
-                                            durationMinutes={auc.durationMinutes}
-                                            status={auc.status}
-                                            onPhaseChange={fetchAuctions}
-                                        />
-                                    </h3>
-                                    <span className="seller-badge">
-                                        Seller: {auc.seller.username}
-                                    </span>
+                                    <h3>{auc.title}</h3>
+                                    <span className={getStatusClass(auc.status)}>{auc.status}</span>
                                 </div>
-                                <p>Status: <strong className={getStatusClass(auc.status)}>{auc.status}</strong></p>
 
-                                <button onClick={() => setSelectedAuction(auc)} className="mt-10 w-100">
+                                <div className="auction-meta mb-10">
+                                    <span className="mono-font">Seller: {auc.seller.username}</span>
+                                    <span>•</span>
+                                    <AuctionTimer
+                                        createdAt={auc.createdAt}
+                                        durationMinutes={auc.durationMinutes}
+                                        status={auc.status}
+                                        onPhaseChange={fetchAuctions}
+                                    />
+                                </div>
+
+                                <button onClick={() => setSelectedAuction(auc)} className="w-100">
                                     {auc.seller.username === user?.username
                                         ? "Manage Auction"
-                                        : (auc.status === "OPEN" ? "Place Bid" : "View Auction")
+                                        : (auc.status === "OPEN" ? "Place Sealed Bid" : "View Details")
                                     }
                                 </button>
                             </div>
                         ))}
-                        <button onClick={fetchAuctions} className="mt-20">Refresh List</button>
                     </div>
 
                     {/* Right Column: History */}
                     <div className="card">
-                        <h3>My Bid History</h3>
+                        <h3 className="mb-10">My Bid History</h3>
                         <div className="history-list">
-                            {history.length === 0 && <p className="text-grey">No bids placed yet.</p>}
+                            {history.length === 0 && <p className="text-muted">No bids placed yet.</p>}
                             {history.map(bid => (
                                 <div key={bid.id} className="history-item">
-                                    <strong>{bid.auction.title}</strong>
-                                    <br />
-                                    {bid.amount ? (
-                                        <span className="text-green">Revealed: ${bid.amount}</span>
-                                    ) : (
-                                        <span className="text-gold">🔒 Sealed Bid</span>
-                                    )}
-                                    <br />
-                                    <small className="text-grey">{new Date(bid.createdAt).toLocaleDateString()}</small>
+                                    <div className="flex-between">
+                                        <strong>{bid.auction.title}</strong>
+                                        <small className="text-sub">{new Date(bid.createdAt).toLocaleDateString()}</small>
+                                    </div>
+                                    <div className="mt-10">
+                                        {bid.amount ? (
+                                            <span className="text-green">Revealed: {bid.amount} ETH</span>
+                                        ) : (
+                                            <span className="text-gold">🔒 Sealed Bid</span>
+                                        )}
+                                    </div>
                                 </div>
                             ))}
                         </div>
@@ -355,52 +324,58 @@ KEEP THIS FILE SAFE! You need the Secret to reveal your bid.
             ) : (
                 /* Single Auction View */
                 <div className="card single-view-container">
-                    <button onClick={() => { setSelectedAuction(null); setStatus("Idle"); }} className="mb-10">
+                    <button
+                        onClick={() => { setSelectedAuction(null); setStatus("Idle"); }}
+                        className="btn-text mb-10"
+                    >
                         ← Back to List
                     </button>
 
-                    <h2>
-                        {selectedAuction.title}
-                        <span className="auction-title-timer">
-                            <AuctionTimer
-                                createdAt={selectedAuction.createdAt}
-                                durationMinutes={selectedAuction.durationMinutes}
-                                status={selectedAuction.status}
-                                onPhaseChange={fetchAuctions}
-                            />
-                        </span>
-                    </h2>
-                    <p>Current Phase: <strong className={getStatusClass(selectedAuction.status)}>{selectedAuction.status}</strong></p>
-                    <div className="bid-form">
+                    <h2 className="font-large mb-2">{selectedAuction.title}</h2>
+                    <div className="auction-meta mb-20">
+                        <span className={getStatusClass(selectedAuction.status)}>{selectedAuction.status}</span>
+                        <AuctionTimer
+                            createdAt={selectedAuction.createdAt}
+                            durationMinutes={selectedAuction.durationMinutes}
+                            status={selectedAuction.status}
+                            onPhaseChange={fetchAuctions}
+                        />
+                    </div>
 
+                    <div className="bid-form">
                         {/* 1. BIDDING PHASE */}
                         {selectedAuction.status === "OPEN" && selectedAuction.seller.username !== user?.username && (
                             <>
-                                <label className="text-left">Bid Amount (ETH)</label>
-                                <input
-                                    type="number"
-                                    placeholder="Amount"
-                                    value={amount}
-                                    onChange={(e) => setAmount(Number(e.target.value))}
-                                />
-
-                                <label className="text-left">Secret (Keep this safe!)</label>
-                                <div className="input-group">
+                                <div>
+                                    <label>Bid Amount (ETH)</label>
                                     <input
-                                        type="text"
-                                        placeholder="Secret key"
-                                        value={secret}
-                                        onChange={(e) => setSecret(e.target.value)}
+                                        type="number"
+                                        placeholder="0.00"
+                                        value={amount}
+                                        onChange={(e) => setAmount(Number(e.target.value))}
                                     />
-                                    <button
-                                        className="btn-random"
-                                        onClick={() => setSecret(Math.floor(Math.random() * 100000).toString())}
-                                    >
-                                        🎲 Random
-                                    </button>
                                 </div>
-                                <button onClick={handleBid} className="primary-btn mt-20">
-                                    Generate Zero-Knowledge Proof & Bid
+
+                                <div>
+                                    <label>Secret (Keep this safe!)</label>
+                                    <div className="input-group">
+                                        <input
+                                            type="text"
+                                            placeholder="Numeric Secret"
+                                            value={secret}
+                                            onChange={(e) => setSecret(e.target.value)}
+                                        />
+                                        <button
+                                            className="btn-random"
+                                            onClick={() => setSecret(Math.floor(Math.random() * 100000).toString())}
+                                        >
+                                            🎲
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <button onClick={handleBid} className="primary-btn mt-10">
+                                    🔒 Generate Proof & Submit Bid
                                 </button>
                             </>
                         )}
@@ -408,12 +383,14 @@ KEEP THIS FILE SAFE! You need the Secret to reveal your bid.
                         {/* 2. REVEAL PHASE */}
                         {selectedAuction.status === "REVEAL" && (
                             <>
-                                <p className="text-gold">⚠ Bidding Closed. Verify your secret to reveal your bid.</p>
+                                <p className="text-gold alert-warning">
+                                    ⚠ Bidding Closed. Reveal your secret now.
+                                </p>
+
                                 <div className="reveal-actions">
                                     <button onClick={() => {
                                         const storageKey = `bids_${selectedAuction.id}_${user?.id}`;
                                         let foundBid: LocalBid | null = null;
-
                                         try {
                                             const stored = localStorage.getItem(storageKey);
                                             if (stored) {
@@ -426,11 +403,10 @@ KEEP THIS FILE SAFE! You need the Secret to reveal your bid.
                                         } catch (e) { console.error(e); }
 
                                         if (!foundBid) {
+                                            /* Legacy fallback */
                                             const oldKey = `bid_${selectedAuction.id}_${user?.id}`;
                                             const oldSaved = localStorage.getItem(oldKey);
-                                            if (oldSaved) {
-                                                foundBid = JSON.parse(oldSaved) as LocalBid;
-                                            }
+                                            if (oldSaved) foundBid = JSON.parse(oldSaved) as LocalBid;
                                         }
 
                                         if (foundBid) {
@@ -440,25 +416,31 @@ KEEP THIS FILE SAFE! You need the Secret to reveal your bid.
                                         } else {
                                             setStatus("No saved bid found on this device.");
                                         }
-                                    }} className="flex-1">
-                                        📂 Load Highest Bid Secret
+                                    }} className="w-100">
+                                        📂 Load Secret from LocalStorage
                                     </button>
                                 </div>
 
-                                <label htmlFor="reveal-secret" className="text-left">Secret Used for Bid</label>
-                                <input
-                                    id="reveal-secret"
-                                    type="text"
-                                    value={secret}
-                                    onChange={(e) => setSecret(e.target.value)}
-                                />
-                                <label htmlFor="reveal-amount" className="text-left">Amount Bid</label>
-                                <input
-                                    id="reveal-amount"
-                                    type="number"
-                                    value={amount}
-                                    onChange={(e) => setAmount(Number(e.target.value))}
-                                />
+                                <div>
+                                    <label>Secret</label>
+                                    <input
+                                        type="text"
+                                        placeholder="Numeric Secret"
+                                        value={secret}
+                                        onChange={(e) => setSecret(e.target.value)}
+                                        aria-label="Bid Secret"
+                                    />
+                                </div>
+                                <div>
+                                    <label>Amount</label>
+                                    <input
+                                        type="number"
+                                        placeholder="0.00"
+                                        value={amount}
+                                        onChange={(e) => setAmount(Number(e.target.value))}
+                                        aria-label="Auction Item Title"
+                                    />
+                                </div>
 
                                 <button onClick={handleReveal} className="btn-reveal w-100 mt-10">
                                     Reveal My Bid
@@ -469,65 +451,44 @@ KEEP THIS FILE SAFE! You need the Secret to reveal your bid.
                         {/* 3. CLOSED PHASE */}
                         {selectedAuction.status === "CLOSED" && (
                             <div className="winner-banner">
-                                <h3>🏁 Auction Closed</h3>
+                                <h3>🏁 Auction Finalized</h3>
                                 {selectedAuction.winner ? (
-                                    <div className="text-green">
-                                        <h4>Winner: {selectedAuction.winner.username}</h4>
-                                        <p className="winning-amount">
-                                            Winning Bid: ${selectedAuction.winningAmount} ETH
-                                        </p>
+                                    <div className="text-green mt-10">
+                                        <div className="text-sub">Winner</div>
+                                        <div className="font-large font-bold">{selectedAuction.winner.username}</div>
+                                        <div className="winner-pill mt-10">
+                                            Sold for {selectedAuction.winningAmount} ETH
+                                        </div>
                                     </div>
                                 ) : (
-                                    <p className="text-gold">No valid bids revealed.</p>
+                                    <p className="text-gold mt-10">No valid bids revealed.</p>
                                 )}
                             </div>
                         )}
                     </div>
 
-                    {/* SELLER ZONE - Always visible to owner */}
+                    {/* SELLER ZONE */}
                     {selectedAuction.seller.username === user?.username && (
                         <div className="seller-zone">
-                            <p className="seller-label">👑 Seller Zone</p>
-
-                            {selectedAuction.status === 'OPEN' && (
-                                <div className="mb-10 text-sub">
-                                    Status: <strong>Accepting Bids</strong>.
-                                    <br />
-                                    Auction will auto-transition to Reveal phase when timer ends.
-                                </div>
-                            )}
-
-                            {selectedAuction.status === 'REVEAL' && (
-                                <div className="mb-10 text-gold">
-                                    Status: <strong>Reveal Phase</strong>.
-                                    <br />
-                                    Auction will auto-close and determine winner when timer ends.
-                                </div>
-                            )}
+                            <p className="seller-label mb-10">👑 Seller Controls</p>
 
                             {selectedAuction.status === 'CLOSED' && !selectedAuction.winner && (
-                                <div className="mb-10">
-                                    <p className="text-gold mb-10">❌ Auction ended with no valid reveals.</p>
-                                    <button
-                                        onClick={handleExtendAuction}
-                                        className="btn-active w-100"
-                                    >
-                                        ⏱ Extend Time (10 Mins)
-                                    </button>
-                                </div>
+                                <button onClick={handleExtendAuction} className="btn-active w-100">
+                                    ⏱ Extend Time (10 Mins)
+                                </button>
                             )}
 
-                            {selectedAuction.status === 'CLOSED' && selectedAuction.winner && (
-                                <div className="text-green">
-                                    ✅ Auction Finalized. Winner declared.
-                                </div>
+                            {selectedAuction.status !== 'CLOSED' && (
+                                <p className="text-sub text-center">
+                                    You cannot bid on your own auction.
+                                </p>
                             )}
-
                         </div>
                     )}
 
                     <div className="status-bar">
-                        Status: <strong>{status}</strong>
+                        <div className="status-label">SYSTEM STATUS</div>
+                        <strong>{status}</strong>
                     </div>
                 </div>
             )}

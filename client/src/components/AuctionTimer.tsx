@@ -28,8 +28,8 @@ export default function AuctionTimer({ createdAt, durationMinutes, status, onPha
                 targetTime = start + totalMs; //end of auction
                 label = "Reveal ends in";
             } else {
-                setTimeLeft("Ended");
-                setPhaseLabel("Auction");
+                setTimeLeft("");
+                setPhaseLabel("");
                 return;
             }
 
@@ -41,7 +41,10 @@ export default function AuctionTimer({ createdAt, durationMinutes, status, onPha
             } else {
                 const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
                 const s = Math.floor((diff % (1000 * 60)) / 1000);
-                setTimeLeft(`${m}m ${s}s`);
+                // Pad w 0s
+                const mStr = m < 10 ? `0${m}` : m;
+                const sStr = s < 10 ? `0${s}` : s;
+                setTimeLeft(`${mStr}:${sStr}`);
                 setPhaseLabel(label);
             }
         };
@@ -51,11 +54,11 @@ export default function AuctionTimer({ createdAt, durationMinutes, status, onPha
         return () => clearInterval(interval);
     }, [createdAt, durationMinutes, status, onPhaseChange]);
 
-    if (status === 'CLOSED') return <span className="text-grey">(Closed)</span>;
+    if (status === 'CLOSED') return <span className="text-muted">(Ended)</span>;
 
     return (
-        <span className="auction-timer-container">
-            {phaseLabel}: <strong className="mono-font">{timeLeft}</strong>
+        <span className="text-sub">
+            {phaseLabel}: <span className={`mono-font ${status === 'REVEAL' ? 'text-gold' : ''}`}>{timeLeft}</span>
         </span>
     );
 }

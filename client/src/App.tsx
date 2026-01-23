@@ -4,6 +4,7 @@ import { type ReactNode } from 'react';
 import Login from './pages/Login.tsx';
 import UserDashboard from './pages/UserDashboard.tsx';
 import AdminDashboard from './pages/AdminDashboard.tsx';
+import './App.css';
 
 function PrivateRoute({ children, role }: { children: ReactNode, role?: string }) {
   const { user, token } = useAuth();
@@ -20,11 +21,19 @@ export default function App() {
           <Route path="/" element={<Login />} />
           <Route
             path="/dashboard"
-            element={<PrivateRoute><UserDashboard /></PrivateRoute>}
+            element={
+              <PrivateRoute>
+                <UserDashboard />
+              </PrivateRoute>
+            }
           />
           <Route
             path="/admin"
-            element={<PrivateRoute role="ADMIN"><AdminDashboard /></PrivateRoute>}
+            element={
+              <PrivateRoute role="ADMIN">
+                <AdminDashboard />
+              </PrivateRoute>
+            }
           />
         </Routes>
       </BrowserRouter>
