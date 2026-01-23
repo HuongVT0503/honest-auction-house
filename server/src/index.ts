@@ -5,12 +5,15 @@ import { PrismaClient } from '@prisma/client';
 import { verifyBidProof } from './utils/verifier';
 import bcrypt from 'bcryptjs';
 import path from 'path';
+import jwt from 'jsonwebtoken';
+import { authenticateToken, requireAdmin, AuthRequest } from './middleware/auth';
 
 dotenv.config();
 
 const app = express();
 const prisma = new PrismaClient();
 const PORT = process.env.PORT || 3000;
+const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_key_change_in_prod';
 
 app.use(cors({
     origin: process.env.FRONTEND_URL || "http://localhost:5173",
@@ -26,28 +29,65 @@ async function getPoseidonHash(amount: any, secret: any) {
     return poseidon.F.toString(hashBytes);
 }
 
-
-//USER ROUTES
+//AUTH ROUTES
 
 app.post('/register', async (req, res) => {
     try {
-        const { username, password } = req.body;
+        const { username, password, isAdmin, adminSecret } = req.body; // Check for admin flag
         const hashedPassword = await bcrypt.hash(password, 10);
 
+        //Require a secret to register as admin
+        const role = (isAdmin && adminSecret === process.env.ADMIN_SECRET) ? 'ADMIN' : 'USER';
+
         const user = await prisma.user.create({
-            data: {
-                username,
-                password: hashedPassword
-            }
+            data: { username, password: hashedPassword, role }
         });
 
-        res.json({ id: user.id, username: user.username });
+        //autologin: generate token immediately
+        const token = jwt.sign({ userId: user.id, username: user.username, role: user.role }, JWT_SECRET, { expiresIn: '24h' });
+
+        res.json({ token, user: { id: user.id, username: user.username, role: user.role } });
     } catch (error) {
-        res.status(400).json({ error: 'Username likely taken' });
+        res.status(400).json({ error: 'Username taken or invalid data' });
     }
 });
 
-// Login (Mock implementation for prototype)
+app.post('/login', async (req, res) => {
+    const { username, password } = req.body;
+    const user = await prisma.user.findUnique({ where: { username } });
+
+    if (!user || !await bcrypt.compare(password, user.password)) {
+        return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    const token = jwt.sign({ userId: user.id, username: user.username, role: user.role }, JWT_SECRET, { expiresIn: '24h' });
+    res.json({ token, user: { id: user.id, username: user.username, role: user.role } });
+});
+
+//ADMIN ROUTES
+
+//create auction 
+app.post('/auctions', authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
+    try {
+        const { title, description, durationMinutes } = req.body;
+        // sellerId is the logged-in admin
+        const sellerId = req.user!.userId;
+
+        const endsAt = new Date();
+        endsAt.setMinutes(endsAt.getMinutes() + durationMinutes);
+
+        const auction = await prisma.auction.create({
+            data: { title, description, sellerId, endsAt, status: "OPEN" }
+        });
+        res.json(auction);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to create auction' });
+    }
+});
+
+//USER ROUTES
+
+//login
 app.post('/login', async (req, res) => {
     const { username, password } = req.body;
     const user = await prisma.user.findUnique({ where: { username } });
@@ -66,30 +106,21 @@ app.post('/login', async (req, res) => {
     }
 });
 
-//AUCTION ROUTES
-
-//create an auction
-app.post('/auctions', async (req, res) => {
+//get own bids history
+app.get('/me/bids', authenticateToken, async (req: AuthRequest, res) => {
     try {
-        const { title, description, sellerId, durationMinutes } = req.body;
-
-        const endsAt = new Date();
-        endsAt.setMinutes(endsAt.getMinutes() + durationMinutes);
-
-        const auction = await prisma.auction.create({
-            data: {
-                title,
-                description,
-                sellerId,
-                endsAt,
-                status: "OPEN"
-            }
+        const bids = await prisma.bid.findMany({
+            where: { bidderId: req.user!.userId },
+            include: { auction: true }, // Include auction details
+            orderBy: { createdAt: 'desc' }
         });
-        res.json(auction);
+        res.json(bids);
     } catch (error) {
-        res.status(500).json({ error: 'Failed to create auction' });
+        res.status(500).json({ error: "Failed to fetch history" });
     }
 });
+
+//AUCTION ROUTES
 
 //list all open auctions
 app.get('/auctions', async (req, res) => {
@@ -123,9 +154,10 @@ app.get('/auctions', async (req, res) => {
 });
 
 //place a Sealed Bid
-app.post('/bid', async (req, res) => {
+app.post('/bid', authenticateToken, async (req: AuthRequest, res) => {
     try {
-        const { auctionId, bidderId, proof, publicSignals } = req.body;
+        const { auctionId, proof, publicSignals } = req.body;
+        const bidderId = req.user!.userId;
 
         const auction = await prisma.auction.findUnique({
             where: { id: Number(auctionId) }

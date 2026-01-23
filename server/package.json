@@ -14,11 +14,13 @@
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
+    "@types/jsonwebtoken": "^9.0.10",
     "bcryptjs": "^2.4.3",
     "circomlibjs": "^0.1.7",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
     "snarkjs": "^0.7.6"
   },
   "devDependencies": {

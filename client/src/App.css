@@ -103,3 +103,102 @@
   background-color: #2c3e50;
   color: white;
 }
+
+.mt-10 { margin-top: 10px; }
+.mt-20 { margin-top: 20px; }
+.mb-10 { margin-bottom: 10px; }
+.mb-20 { margin-bottom: 20px; }
+.w-100 { width: 100%; }
+.flex-1 { flex: 1; }
+.text-left { text-align: left; }
+.text-sub { color: #888; }
+.text-grey { color: #666; }
+
+/* Status Colors */
+.status-open { color: #2ecc71; }
+.status-reveal { color: #e67e22; }
+.status-closed { color: #95a5a6; }
+.text-green { color: #2ecc71; }
+.text-gold { color: #f1c40f; }
+
+/* Login */
+.btn-transparent {
+  background: transparent;
+  margin-top: 10px;
+}
+
+/* Dashboards */
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  border-bottom: 1px solid #444;
+  padding-bottom: 1rem;
+}
+
+.header-title {
+  font-size: 1.5rem;
+  margin: 0;
+}
+
+.header-user {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.btn-logout {
+  background-color: #c0392b;
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 2rem;
+}
+
+/* Auction Lists */
+.auction-header {
+  display: flex;
+  justify-content: space-between;
+}
+
+.seller-badge {
+  font-size: 0.8em;
+  background: #333;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+/* History */
+.history-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.history-item {
+  border-bottom: 1px solid #444;
+  padding: 10px 0;
+  font-size: 0.9em;
+}
+
+/* Single View */
+.single-view-container {
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.reveal-actions {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.status-bar {
+  margin-top: 20px;
+  padding: 10px;
+  background: #1a1a1a;
+  border-radius: 4px;
+  min-height: 40px;
+}
