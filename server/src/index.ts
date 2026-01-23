@@ -215,7 +215,10 @@ app.get('/auctions', async (req, res) => {
         //get fresh list
         const auctions = await prisma.auction.findMany({
             orderBy: { createdAt: 'desc' },
-            include: { seller: { select: { username: true } } }
+            include: {
+                seller: { select: { username: true } },
+                winner: { select: { username: true } }
+            }
         });
 
         res.json(auctions);
@@ -244,7 +247,7 @@ app.post('/bid', authenticateToken, async (req: AuthRequest, res) => {
         }
 
         //REPLAY ATTACK
-        const proofAuctionId = publicSignals[0]; 
+        const proofAuctionId = publicSignals[0];
         const commitment = publicSignals[1];
 
         //verify proof was gen specifically for THIS auction
@@ -348,6 +351,23 @@ app.post('/auctions/:id/close', async (req, res) => {
 
         if (!auction) return res.status(404).json({ error: "Auction not found" });
 
+        if (auction.bids.length === 0) {
+            await prisma.auction.update({
+                where: { id: Number(id) },
+                data: {
+                    status: "CLOSED",
+                    winnerId: null
+                }
+            });
+
+            return res.json({
+                success: true,
+                message: "Auction closed. No bids were placed.",
+                winner: null,
+                winningAmount: 0
+            });
+        }
+
         //filter for VALID REVEALED bids (amount is not null)
         const validBids = auction.bids
             .filter(b => b.amount !== null)
@@ -355,8 +375,11 @@ app.post('/auctions/:id/close', async (req, res) => {
 
         //Determine Winner
         let winnerId = null;
+        let winningAmount = 0;
+
         if (validBids.length > 0) {
             winnerId = validBids[0].bidderId;
+            winningAmount = validBids[0].amount || 0;
         }
 
         // 4. Update Auction State
@@ -364,7 +387,8 @@ app.post('/auctions/:id/close', async (req, res) => {
             where: { id: Number(id) },
             data: {
                 status: "CLOSED",
-                winnerId: winnerId
+                winnerId: winnerId,
+                winningAmount: winningAmount
             },
             include: { winner: { select: { username: true } } }
         });
@@ -372,7 +396,7 @@ app.post('/auctions/:id/close', async (req, res) => {
         res.json({
             success: true,
             winner: updatedAuction.winner?.username || "No valid bids",
-            winningAmount: validBids[0]?.amount || 0
+            winningAmount: updatedAuction.winningAmount
         });
 
     } catch (error) {

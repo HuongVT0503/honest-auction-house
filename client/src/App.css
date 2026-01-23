@@ -299,7 +299,6 @@
   cursor: pointer;
 }
 
-
 .header-active-auctions {
   margin-bottom: 1rem;
 }
@@ -319,4 +318,10 @@
   display: block;
   margin-top: 5px;
   color: orange;
+}
+
+.winning-amount {
+  font-size: 1.2em;
+  font-weight: bold;
+  margin-top: 10px;
 }

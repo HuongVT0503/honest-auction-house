@@ -374,7 +374,16 @@ export default function UserDashboard() {
                         {selectedAuction.status === "CLOSED" && (
                             <div className="winner-banner">
                                 <h3>🏁 Auction Closed</h3>
-                                <p>Checking results...</p>
+                                {selectedAuction.winner ? (
+                                    <div className="text-green">
+                                        <h4>Winner: {selectedAuction.winner.username}</h4>
+                                        <p className="winning-amount">
+                                            Winning Bid: ${selectedAuction.winningAmount} ETH
+                                        </p>
+                                    </div>
+                                ) : (
+                                    <p className="text-gold">No valid bids revealed.</p>
+                                )}
                             </div>
                         )}
                     </div>

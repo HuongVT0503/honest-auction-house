@@ -39,6 +39,8 @@ model Auction {
   winnerId    Int?          
   winner      User?         @relation("AuctionWinner", fields: [winnerId], references: [id])
   
+  winningAmount   Int?
+  
   createdAt   DateTime      @default(now())
 }
 
