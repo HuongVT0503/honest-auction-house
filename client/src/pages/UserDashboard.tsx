@@ -70,7 +70,7 @@ export default function UserDashboard() {
 
         try {
             //gen ZK Proof in browser
-            const { proof, publicSignals } = await generateBidProof(amount, secret);
+            const { proof, publicSignals } = await generateBidProof(amount, secret, selectedAuction.id);
             setStatus("Proof generated! Sending to server...");
 
             //send to be

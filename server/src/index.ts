@@ -22,10 +22,10 @@ app.use(cors({
 }));
 app.use(express.json());
 
-async function getPoseidonHash(amount: any, secret: any) {
-    const { buildPoseidon } = await import('circomlibjs'); // Dynamic import for CommonJS
+async function getPoseidonHash(amount: any, secret: any, auctionId: any) {
+    const { buildPoseidon } = await import('circomlibjs');
     const poseidon = await buildPoseidon();
-    const hashBytes = poseidon([BigInt(amount), BigInt(secret)]);
+    const hashBytes = poseidon([BigInt(amount), BigInt(secret), BigInt(auctionId)]);
     return poseidon.F.toString(hashBytes);
 }
 
@@ -171,6 +171,16 @@ app.post('/bid', authenticateToken, async (req: AuthRequest, res) => {
             return res.status(400).json({ error: "Auction has ended. No new bids allowed." });
         }
 
+        //REPLAY ATTACK
+        //publicSignals[0] = commitment
+        //publicSignals[1] = auctionId
+        const proofAuctionId = publicSignals[1];
+
+        //verify proof was gen specifically for THIS auction
+        if (proofAuctionId !== String(auctionId)) {
+            return res.status(400).json({ error: "Invalid Proof: Auction ID mismatch (Replay Attack Attempt?)" });
+        }
+
         //verify ZK proof
         // publicSignals[0] is the 'commitment' (Poseidon hash output) from the circuit
         const isValid = await verifyBidProof(proof, publicSignals);
@@ -221,7 +231,7 @@ app.post('/bid/reveal', async (req, res) => {
 
         //verify the inputs match the commitment on the blockchain/DB
         //replicate the circuit logic: Commitment = Poseidon(amount, secret)
-        const calculatedHash = await getPoseidonHash(amount, secret);
+        const calculatedHash = await getPoseidonHash(amount, secret, auctionId);
 
         if (calculatedHash !== bid.commitment) {
             return res.status(400).json({ error: "Invalid secret or amount! Hash mismatch." });

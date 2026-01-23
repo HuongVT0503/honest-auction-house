@@ -9,12 +9,12 @@ export interface ProofResult {
     publicSignals: string[];
 }
 
-export async function generateBidProof(amount: number, secret: string): Promise<ProofResult> {
-    console.log("Generating proof for:", { amount, secret });
+export async function generateBidProof(amount: number, secret: string, auctionId: number): Promise<ProofResult> {
+    console.log("Generating proof for:", { amount, secret, auctionId });
 
     //validate input: Secrets must be numeric
     if (isNaN(Number(secret))) {
-        throw new Error("For this prototype, the Secret must be a NUMBER (e.g., '12345').");
+        throw new Error("The Secret must be a NUMBER.");
     }
 
     //initialize Poseidon Hash (Async)
@@ -24,8 +24,9 @@ export async function generateBidProof(amount: number, secret: string): Promise<
     //hash [amount, secret] just like the circuit does
     const secretBigInt = BigInt(secret);
     const amountBigInt = BigInt(amount);
+    const auctionIdBigInt = BigInt(auctionId);
 
-    const hashBytes = poseidon([amountBigInt, secretBigInt]);
+    const hashBytes = poseidon([amountBigInt, secretBigInt, auctionIdBigInt]);
 
     // Convert the hash bytes to a string number (Finite Field representation)
     const commitment = poseidon.F.toString(hashBytes);
@@ -36,6 +37,7 @@ export async function generateBidProof(amount: number, secret: string): Promise<
     const input = {
         amount: amountBigInt.toString(),
         secret: secretBigInt.toString(),
+        auctionId: auctionIdBigInt.toString(),
         commitment: commitment
     };
 

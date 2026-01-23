@@ -1,22 +1,22 @@
 pragma circom 2.0.0;
 
-// Import the Poseidon hashing function (standard for ZK)
+//import Poseidon hashing function (standard for ZK)
 include "../node_modules/circomlib/circuits/poseidon.circom";
 
 template SimpleHash() {
-    // Private Input: The secret number (e.g., your bid or password)
+    //private input: the secret number (vd ur bid or pwd)
     signal input secret;
 
-    // Public Output: The hash of the secret
+    //public output: hash of the secret
     signal output hash;
 
-    // Initialize Poseidon Hash with 1 input
+    //init Poseidon Hash w 1 input
     component poseidon = Poseidon(1);
     
-    // Connect the secret to the hasher
+    //connect secret to hasher
     poseidon.inputs[0] <== secret;
 
-    // Output the result
+    //output result
     hash <== poseidon.out;
 }
 
