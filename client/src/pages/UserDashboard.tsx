@@ -96,6 +96,7 @@ export default function UserDashboard() {
         setStatus("Generating Zero Knowledge Proof...");
 
         const bidData = { amount, secret };
+
         localStorage.setItem(`bid_${selectedAuction.id}_${user.id}`, JSON.stringify(bidData));
 
         try {
@@ -114,6 +115,26 @@ export default function UserDashboard() {
             const data = await res.json();
             if (res.ok) {
                 setStatus(`Bid Placed! Commitment: ${data.commitment.slice(0, 10)}...`);
+
+                const backupContent = `
+HONEST AUCTION BACKUP
+---------------------
+Auction: ${selectedAuction.title} (ID: ${selectedAuction.id})
+Amount: ${amount} ETH
+Secret: ${secret}
+Commitment: ${data.commitment}
+
+KEEP THIS FILE SAFE! You need the Secret to reveal your bid.
+            `;
+
+                const blob = new Blob([backupContent], { type: 'text/plain' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `bid-backup-${selectedAuction.id}-${Date.now()}.txt`;
+                a.click();
+                window.URL.revokeObjectURL(url);
+
                 fetchHistory();
             } else {
                 setStatus(`Error: ${data.error}`);
@@ -154,7 +175,7 @@ export default function UserDashboard() {
     const handleCloseAuction = async () => {
         if (!selectedAuction) return;
 
-        if (selectedAuction.status === 'CLOSED') {
+        if (selectedAuction.status === 'CLOSED' && selectedAuction.winner) {
             setStatus("Auction is already closed.");
             return;
         }
@@ -401,11 +422,12 @@ export default function UserDashboard() {
                             <button
                                 onClick={handleCloseAuction}
                                 className="btn-close-auction w-100"
-                                disabled={selectedAuction.status === 'CLOSED'}
+                                disabled={selectedAuction.status === 'CLOSED' && !!selectedAuction.winner}
                             >
                                 {selectedAuction.status === 'OPEN' ? "Wait for Reveal Phase (or Force Close)" :
                                     selectedAuction.status === 'REVEAL' ? "🏆 End Auction & Pick Winner" :
-                                        "✅ Auction Finalized"}
+                                        !selectedAuction.winner ? "⚠ Finalize Winner (Status Stuck)" :
+                                            "✅ Auction Finalized"}
                             </button>
                             {selectedAuction.status === 'OPEN' && (
                                 <small className="warning-text-orange">

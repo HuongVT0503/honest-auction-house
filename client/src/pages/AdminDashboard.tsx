@@ -52,13 +52,13 @@ export default function AdminDashboard() {
     }, [headers]);
 
     const handleReset = async () => {
-        const pwd = prompt("Enter Admin Password to wipe DB:");
-        if (!pwd) return;
+        if (!confirm("ARE YOU SURE? This will wipe all auctions and bids.")) return;
+
         const res = await fetch(`${API_URL}/admin/reset`, {
             method: 'POST',
-            headers,
-            body: JSON.stringify({ password: pwd })
+            headers
         });
+
         const data = await res.json();
         if (data.success) {
             alert("System Reset");

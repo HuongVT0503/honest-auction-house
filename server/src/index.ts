@@ -99,19 +99,12 @@ app.get('/admin/bids', authenticateToken, requireAdmin, async (req, res) => {
     } catch (e) { res.status(500).json({ error: "Fetch failed" }); }
 });
 
-app.post('/admin/reset', async (req, res) => {
+app.post('/admin/reset', authenticateToken, requireAdmin, async (req, res) => {
     try {
-        const { password } = req.body;
-        if (password !== "admin_reset_123") {
-            return res.status(403).json({ error: "Unauthorized" });
-        }
-
         await prisma.bid.deleteMany({});
         await prisma.auction.deleteMany({});
-        //?keeop users
-        // await prisma.user.deleteMany({}); 
 
-        res.json({ success: true, message: "All auctions and bids wiped." });
+        res.json({ success: true, message: "System reset successfully." });
     } catch (error) {
         console.error("Reset failed:", error);
         res.status(500).json({ error: "Failed to reset database" });
@@ -301,21 +294,29 @@ app.post('/bid/reveal', async (req, res) => {
             return res.status(400).json({ error: "Invalid input: Amount and Secret must be numeric strings." });
         }
 
+        const calculatedHash = await getPoseidonHash(amount, secret, auctionId);
+
         const bid = await prisma.bid.findUnique({
             where: {
-                auctionId_bidderId: {
-                    auctionId: Number(auctionId),
-                    bidderId: Number(bidderId)
-                }
-            }
+                commitment: calculatedHash
+            },
+            include: { auction: true }
         });
 
         if (!bid) return res.status(404).json({ error: "Bid not found" });
+
+        const now = new Date();
+        const { biddingEnd } = calculatePhases(new Date(bid.auction.createdAt), bid.auction.durationMinutes);
+        const isRevealTime = bid.auction.status === 'REVEAL' || bid.auction.status === 'CLOSED' || now >= biddingEnd;
+
+        if (!isRevealTime) {
+            return res.status(400).json({ error: "Phase Error: Cannot reveal during Bidding Phase." });
+        }
+
         if (bid.amount !== null) return res.status(400).json({ error: "Already revealed" });
 
         //verify the inputs match the commitment on the blockchain/DB
         //replicate the circuit logic: Commitment = Poseidon(amount, secret)
-        const calculatedHash = await getPoseidonHash(amount, secret, auctionId);
 
         if (calculatedHash !== bid.commitment) {
             return res.status(400).json({ error: "Invalid secret or amount! Hash mismatch." });
@@ -354,6 +355,19 @@ app.post('/auctions/:id/close', async (req, res) => {
         });
 
         if (!auction) return res.status(404).json({ error: "Auction not found" });
+
+        if (auction.status === "CLOSED" && auction.winnerId !== null) {
+            return res.json({
+                success: true,
+                message: "Auction already finalized",
+                winner: auction.winningAmount
+            });
+        }
+
+        const { biddingEnd } = calculatePhases(new Date(auction.createdAt), auction.durationMinutes);
+        if (new Date() < biddingEnd) {
+            return res.status(400).json({ error: "Too early to close. Wait for bidding to end." });
+        }
 
         if (auction.bids.length === 0) {
             await prisma.auction.update({

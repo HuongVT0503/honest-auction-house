@@ -62,7 +62,8 @@ model Bid {
   
   createdAt   DateTime @default(now())
 
-  @@unique([auctionId, bidderId]) // Prevent a user from bidding twice on the same auction
+  //@@unique([auctionId, bidderId]) // Prevent a user from bidding twice on the same auction
+  //vd raise previous bid
 }
 
 enum AuctionStatus {
