@@ -303,7 +303,10 @@ app.post('/bid/reveal', async (req, res) => {
             include: { auction: true }
         });
 
-        if (!bid) return res.status(404).json({ error: "Bid not found" });
+        if (!bid) {
+            console.log(`Reveal failed. Server calc: ${calculatedHash} vs DB: (Not Found)`);
+            return res.status(404).json({ error: "Bid not found" })
+        };
 
         const now = new Date();
         const { biddingEnd } = calculatePhases(new Date(bid.auction.createdAt), bid.auction.durationMinutes);

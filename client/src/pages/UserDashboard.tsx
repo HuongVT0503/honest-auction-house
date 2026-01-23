@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { useAuth } from "../context/AuthContext";
 import { generateBidProof } from "../lib/snark-utils";
 import AuctionTimer from "../components/AuctionTimer";
-import type { Auction, BidHistory } from "../types";
+import type { Auction, BidHistory, LocalBid } from "../types";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
@@ -95,10 +95,6 @@ export default function UserDashboard() {
         if (!selectedAuction || !user) return;
         setStatus("Generating Zero Knowledge Proof...");
 
-        const bidData = { amount, secret };
-
-        localStorage.setItem(`bid_${selectedAuction.id}_${user.id}`, JSON.stringify(bidData));
-
         try {
             const { proof, publicSignals } = await generateBidProof(amount, secret, selectedAuction.id);
             setStatus("Proof generated! Sending to server...");
@@ -115,6 +111,27 @@ export default function UserDashboard() {
             const data = await res.json();
             if (res.ok) {
                 setStatus(`Bid Placed! Commitment: ${data.commitment.slice(0, 10)}...`);
+
+                const storageKey = `bids_${selectedAuction.id}_${user.id}`;
+
+                let existingBids: LocalBid[] = [];
+                try {
+                    const stored = localStorage.getItem(storageKey);
+                    if (stored) existingBids = JSON.parse(stored);
+                } catch (e) {
+                    console.error("Error parsing local bids:", e);
+                }
+
+                const newBid: LocalBid = {
+                    amount: amount,
+                    secret: secret,
+                    commitment: data.commitment,
+                    timestamp: Date.now()
+                };
+
+
+                existingBids.push(newBid);
+                localStorage.setItem(storageKey, JSON.stringify(existingBids));
 
                 const backupContent = `
 HONEST AUCTION BACKUP
@@ -371,17 +388,37 @@ KEEP THIS FILE SAFE! You need the Secret to reveal your bid.
                                 <p className="text-gold">⚠ Bidding Closed. Verify your secret to reveal your bid.</p>
                                 <div className="reveal-actions">
                                     <button onClick={() => {
-                                        const saved = localStorage.getItem(`bid_${selectedAuction.id}_${user?.id}`);
-                                        if (saved) {
-                                            const { amount, secret } = JSON.parse(saved);
-                                            setAmount(amount);
-                                            setSecret(secret);
-                                            setStatus("Restored secret from browser storage!");
+                                        const storageKey = `bids_${selectedAuction.id}_${user?.id}`;
+                                        let foundBid: LocalBid | null = null;
+
+                                        try {
+                                            const stored = localStorage.getItem(storageKey);
+                                            if (stored) {
+                                                const savedBids: LocalBid[] = JSON.parse(stored);
+                                                if (savedBids.length > 0) {
+                                                    savedBids.sort((a, b) => b.amount - a.amount);
+                                                    foundBid = savedBids[0];
+                                                }
+                                            }
+                                        } catch (e) { console.error(e); }
+
+                                        if (!foundBid) {
+                                            const oldKey = `bid_${selectedAuction.id}_${user?.id}`;
+                                            const oldSaved = localStorage.getItem(oldKey);
+                                            if (oldSaved) {
+                                                foundBid = JSON.parse(oldSaved) as LocalBid;
+                                            }
+                                        }
+
+                                        if (foundBid) {
+                                            setAmount(foundBid.amount);
+                                            setSecret(foundBid.secret);
+                                            setStatus(`Loaded secret for bid: ${foundBid.amount} ETH`);
                                         } else {
                                             setStatus("No saved bid found on this device.");
                                         }
                                     }} className="flex-1">
-                                        📂 Load My Secret
+                                        📂 Load Highest Bid Secret
                                     </button>
                                 </div>
 

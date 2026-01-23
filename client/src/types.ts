@@ -25,3 +25,10 @@ export interface BidHistory {
     bidder?: { username: string };
     createdAt: string;
 }
+
+export interface LocalBid {
+    amount: number;
+    secret: string;
+    commitment: string;
+    timestamp: number;
+}
