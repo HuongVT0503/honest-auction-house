@@ -29,6 +29,36 @@ async function getPoseidonHash(amount: any, secret: any, auctionId: any) {
     return poseidon.F.toString(hashBytes);
 }
 
+async function finalizeAuction(auctionId: number) {
+    const auction = await prisma.auction.findUnique({
+        where: { id: auctionId },
+        include: { bids: true }
+    });
+
+    if (!auction || auction.status === 'CLOSED') return;
+
+    const validBids = auction.bids
+        .filter(b => b.amount !== null)
+        .sort((a, b) => (b.amount || 0) - (a.amount || 0)); // Descending
+
+    let winnerId = null;
+    let winningAmount = 0;
+
+    if (validBids.length > 0) {
+        winnerId = validBids[0].bidderId;
+        winningAmount = validBids[0].amount || 0;
+    }
+
+    await prisma.auction.update({
+        where: { id: auctionId },
+        data: {
+            status: "CLOSED",
+            winnerId: winnerId,
+            winningAmount: winningAmount
+        }
+    });
+}
+
 const calculatePhases = (createdAt: Date, durationMinutes: number) => {
     const totalMs = durationMinutes * 60 * 1000;
     const biddingMs = totalMs * 0.9; //90% time for bidding
@@ -198,10 +228,7 @@ app.get('/auctions', async (req, res) => {
 
             //Reveal -> Closed
             if (auction.status === "REVEAL" && now >= auctionEnd) {
-                await prisma.auction.update({
-                    where: { id: auction.id },
-                    data: { status: "CLOSED" }
-                });
+                await finalizeAuction(auction.id);
             }
         }
 
@@ -347,84 +374,122 @@ app.get('/', (req, res) => {
     res.send('Honest Auction House Backend is Running & Connected to DB!');
 });
 
-app.post('/auctions/:id/close', async (req, res) => {
+app.post('/auctions/:id/extend', authenticateToken, async (req: AuthRequest, res) => {
     try {
         const { id } = req.params;
+        const sellerId = req.user!.userId;
+        const EXTENSION_MINUTES = 10;
 
-        //fetch auction and revealed bids
-        const auction = await prisma.auction.findUnique({
-            where: { id: Number(id) },
-            include: { bids: true }
-        });
+        const auction = await prisma.auction.findUnique({ where: { id: Number(id) } });
 
         if (!auction) return res.status(404).json({ error: "Auction not found" });
+        if (auction.sellerId !== sellerId) return res.status(403).json({ error: "Only seller can extend" });
 
-        if (auction.status === "CLOSED" && auction.winnerId !== null) {
-            return res.json({
-                success: true,
-                message: "Auction already finalized",
-                winner: auction.winningAmount
-            });
+        if (auction.status !== "CLOSED" || auction.winnerId !== null) {
+            return res.status(400).json({ error: "Can only extend closed auctions with no winner." });
         }
 
-        const { biddingEnd } = calculatePhases(new Date(auction.createdAt), auction.durationMinutes);
-        if (new Date() < biddingEnd) {
-            return res.status(400).json({ error: "Too early to close. Wait for bidding to end." });
-        }
+        const ageInMs = new Date().getTime() - new Date(auction.createdAt).getTime();
+        const ageInMinutes = Math.ceil(ageInMs / 60000);
+        const newDuration = ageInMinutes + EXTENSION_MINUTES;
 
-        if (auction.bids.length === 0) {
-            await prisma.auction.update({
-                where: { id: Number(id) },
-                data: {
-                    status: "CLOSED",
-                    winnerId: null
-                }
-            });
-
-            return res.json({
-                success: true,
-                message: "Auction closed. No bids were placed.",
-                winner: null,
-                winningAmount: 0
-            });
-        }
-
-        //filter for VALID REVEALED bids (amount is not null)
-        const validBids = auction.bids
-            .filter(b => b.amount !== null)
-            .sort((a, b) => (b.amount || 0) - (a.amount || 0)); // Sort Descending
-
-        //Determine Winner
-        let winnerId = null;
-        let winningAmount = 0;
-
-        if (validBids.length > 0) {
-            winnerId = validBids[0].bidderId;
-            winningAmount = validBids[0].amount || 0;
-        }
-
-        // 4. Update Auction State
-        const updatedAuction = await prisma.auction.update({
+        //extend the reveal phase
+        await prisma.auction.update({
             where: { id: Number(id) },
             data: {
-                status: "CLOSED",
-                winnerId: winnerId,
-                winningAmount: winningAmount
-            },
-            include: { winner: { select: { username: true } } }
+                durationMinutes: newDuration,
+                status: "REVEAL",
+                winnerId: null,
+                winningAmount: null
+            }
         });
 
-        res.json({
-            success: true,
-            winner: updatedAuction.winner?.username || "No valid bids",
-            winningAmount: updatedAuction.winningAmount
-        });
+        res.json({ success: true, message: "Auction extended by 10 minutes." });
 
     } catch (error) {
-        console.error("Error closing auction:", error);
-        res.status(500).json({ error: 'Failed to close auction' });
+        console.error(error);
+        res.status(500).json({ error: 'Failed to extend auction' });
     }
 });
+
+// app.post('/auctions/:id/close', async (req, res) => {
+//     try {
+//         const { id } = req.params;
+
+//         //fetch auction and revealed bids
+//         const auction = await prisma.auction.findUnique({
+//             where: { id: Number(id) },
+//             include: { bids: true }
+//         });
+
+//         if (!auction) return res.status(404).json({ error: "Auction not found" });
+
+//         if (auction.status === "CLOSED" && auction.winnerId !== null) {
+//             return res.json({
+//                 success: true,
+//                 message: "Auction already finalized",
+//                 winner: auction.winningAmount
+//             });
+//         }
+
+//         const { biddingEnd } = calculatePhases(new Date(auction.createdAt), auction.durationMinutes);
+//         if (new Date() < biddingEnd) {
+//             return res.status(400).json({ error: "Too early to close. Wait for bidding to end." });
+//         }
+
+//         if (auction.bids.length === 0) {
+//             await prisma.auction.update({
+//                 where: { id: Number(id) },
+//                 data: {
+//                     status: "CLOSED",
+//                     winnerId: null
+//                 }
+//             });
+
+//             return res.json({
+//                 success: true,
+//                 message: "Auction closed. No bids were placed.",
+//                 winner: null,
+//                 winningAmount: 0
+//             });
+//         }
+
+//         //filter for VALID REVEALED bids (amount is not null)
+//         const validBids = auction.bids
+//             .filter(b => b.amount !== null)
+//             .sort((a, b) => (b.amount || 0) - (a.amount || 0)); // Sort Descending
+
+//         //Determine Winner
+//         let winnerId = null;
+//         let winningAmount = 0;
+
+//         if (validBids.length > 0) {
+//             winnerId = validBids[0].bidderId;
+//             winningAmount = validBids[0].amount || 0;
+//         }
+
+//         // 4. Update Auction State
+//         const updatedAuction = await prisma.auction.update({
+//             where: { id: Number(id) },
+//             data: {
+//                 status: "CLOSED",
+//                 winnerId: winnerId,
+//                 winningAmount: winningAmount
+//             },
+//             include: { winner: { select: { username: true } } }
+//         });
+
+//         res.json({
+//             success: true,
+//             winner: updatedAuction.winner?.username || "No valid bids",
+//             winningAmount: updatedAuction.winningAmount
+//         });
+
+//     } catch (error) {
+//         console.error("Error closing auction:", error);
+//         res.status(500).json({ error: 'Failed to close auction' });
+//     }
+// });
 
 
 const frontendPath = path.join(__dirname, "public");

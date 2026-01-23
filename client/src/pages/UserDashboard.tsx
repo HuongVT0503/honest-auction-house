@@ -189,46 +189,69 @@ KEEP THIS FILE SAFE! You need the Secret to reveal your bid.
         }
     };
 
-    const handleCloseAuction = async () => {
+    const handleExtendAuction = async () => {
         if (!selectedAuction) return;
+        if (!confirm("This will extend the auction by 10 minutes to allow bidders to reveal. Proceed?")) return;
 
-        if (selectedAuction.status === 'CLOSED' && selectedAuction.winner) {
-            setStatus("Auction is already closed.");
-            return;
-        }
-
-        // if trying to close during OPEN phase (skips reveal)
-        if (selectedAuction.status === 'OPEN') {
-            if (!confirm("Warning: Closing now will skip the Reveal phase and no bids will be valid. Are you sure?")) {
-                return;
-            }
-        }
-
-        setStatus("Closing Auction...");
+        setStatus("Extending Auction...");
         try {
-            const res = await fetch(`${API_URL}/auctions/${selectedAuction.id}/close`, {
+            const res = await fetch(`${API_URL}/auctions/${selectedAuction.id}/extend`, {
                 method: "POST",
                 headers: authHeaders,
             });
             const data = await res.json();
             if (res.ok) {
-                const winnerMsg = data.winner
-                    ? `Winner: ${data.winner} ($${data.winningAmount})`
-                    : "No valid bids revealed.";
-
-                setStatus(`Auction Closed! ${winnerMsg}`);
-
-                // Immediately update local state to reflect change without waiting for re-fetch
-                setSelectedAuction(prev => prev ? { ...prev, status: 'CLOSED' } : null);
+                setStatus("Auction Extended!");
                 fetchAuctions();
             } else {
                 setStatus(`Error: ${data.error}`);
             }
         } catch (e) {
             console.error(e);
-            setStatus("Failed to close auction.");
+            setStatus("Failed to extend.");
         }
     };
+
+    // const handleCloseAuction = async () => {
+    //     if (!selectedAuction) return;
+
+    //     if (selectedAuction.status === 'CLOSED' && selectedAuction.winner) {
+    //         setStatus("Auction is already closed.");
+    //         return;
+    //     }
+
+    //     // if trying to close during OPEN phase (skips reveal)
+    //     if (selectedAuction.status === 'OPEN') {
+    //         if (!confirm("Warning: Closing now will skip the Reveal phase and no bids will be valid. Are you sure?")) {
+    //             return;
+    //         }
+    //     }
+
+    //     setStatus("Closing Auction...");
+    //     try {
+    //         const res = await fetch(`${API_URL}/auctions/${selectedAuction.id}/close`, {
+    //             method: "POST",
+    //             headers: authHeaders,
+    //         });
+    //         const data = await res.json();
+    //         if (res.ok) {
+    //             const winnerMsg = data.winner
+    //                 ? `Winner: ${data.winner} ($${data.winningAmount})`
+    //                 : "No valid bids revealed.";
+
+    //             setStatus(`Auction Closed! ${winnerMsg}`);
+
+    //             // Immediately update local state to reflect change without waiting for re-fetch
+    //             setSelectedAuction(prev => prev ? { ...prev, status: 'CLOSED' } : null);
+    //             fetchAuctions();
+    //         } else {
+    //             setStatus(`Error: ${data.error}`);
+    //         }
+    //     } catch (e) {
+    //         console.error(e);
+    //         setStatus("Failed to close auction.");
+    //     }
+    // };
 
     const getStatusClass = (status: string) => {
         switch (status) {
@@ -465,24 +488,41 @@ KEEP THIS FILE SAFE! You need the Secret to reveal your bid.
                     {selectedAuction.seller.username === user?.username && (
                         <div className="seller-zone">
                             <p className="seller-label">👑 Seller Zone</p>
-                            <button
-                                onClick={handleCloseAuction}
-                                className="btn-close-auction w-100"
-                                disabled={
-                                    (selectedAuction.status === 'CLOSED' && !!selectedAuction.winner) ||
-                                    selectedAuction.status === 'OPEN'
-                                }
-                            >
-                                {selectedAuction.status === 'OPEN' ? "Bidding in Progress (Wait for Reveal)" :
-                                    selectedAuction.status === 'REVEAL' ? "🏆 End Auction & Pick Winner" :
-                                        !selectedAuction.winner ? "⚠ Finalize Winner (Status Stuck)" :
-                                            "✅ Auction Finalized"}
-                            </button>
+
                             {selectedAuction.status === 'OPEN' && (
-                                <small className="text-gray">
-                                    (You must wait for the bidding timer to end before closing)
-                                </small>
+                                <div className="mb-10 text-sub">
+                                    Status: <strong>Accepting Bids</strong>.
+                                    <br />
+                                    Auction will auto-transition to Reveal phase when timer ends.
+                                </div>
                             )}
+
+                            {selectedAuction.status === 'REVEAL' && (
+                                <div className="mb-10 text-gold">
+                                    Status: <strong>Reveal Phase</strong>.
+                                    <br />
+                                    Auction will auto-close and determine winner when timer ends.
+                                </div>
+                            )}
+
+                            {selectedAuction.status === 'CLOSED' && !selectedAuction.winner && (
+                                <div className="mb-10">
+                                    <p className="text-gold mb-10">❌ Auction ended with no valid reveals.</p>
+                                    <button
+                                        onClick={handleExtendAuction}
+                                        className="btn-active w-100"
+                                    >
+                                        ⏱ Extend Time (10 Mins)
+                                    </button>
+                                </div>
+                            )}
+
+                            {selectedAuction.status === 'CLOSED' && selectedAuction.winner && (
+                                <div className="text-green">
+                                    ✅ Auction Finalized. Winner declared.
+                                </div>
+                            )}
+
                         </div>
                     )}
 
