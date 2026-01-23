@@ -1,16 +1,29 @@
 # Honest Auction House (ZKP Verifiable Sealed-Bid)
 
-A Zero-Knowledge Proof (ZKP) based auction system where users can submit sealed bids without revealing the amount to the server or public until the auction closes. This project guarantees bid privacy and auction integrity using `circom` and `snarkjs`.
+A Zero-Knowledge Proof (ZKP) based auction system where users submit sealed bids without revealing the amount to the server or the public until the auction closes. This guarantees **bid privacy**, **auction integrity**, and protection against **front-running**, using `circom` and `snarkjs`.
 
 ---
 
 ## 🛠 Tech Stack
 
-- **Frontend:** React (Vite) + TypeScript
-- **Backend:** Node.js + Express
+- **Frontend:** React (Vite), TypeScript, `snarkjs` (Browser-side Prover)
+- **Backend:** Node.js, Express, `snarkjs` (Server-side Verifier)
 - **Database:** PostgreSQL (via Prisma ORM)
-- **ZKP Engine:** Circom (Circuits) + SnarkJS (Proofs)
+- **Cryptography:** Circom (Circuits), Groth16 Proofs, Poseidon Hash
 - **Infrastructure:** Render (Backend/DB) + Vercel (Frontend)
+
+---
+
+## 🌟 Key Features
+
+- **Privacy First:** Bids are submitted as cryptographic commitments. The server _never_ sees the bid amount during the bidding phase.
+- **Verifiable Integrity:** Uses `Circom` and `Groth16` proofs to cryptographically verify bid validity without revealing data.
+- **Security Hardened:**
+  - **Replay Attack Protection:** Proofs are bound to specific Auction IDs.
+  - **Negative Bid Prevention:** 64-bit range checks prevent integer overflow attacks.
+- **User Experience:**
+  - Automatic local backups of bid secrets.
+  - One-click "Reveal" functionality using `localStorage`.
 
 ---
 
@@ -18,12 +31,118 @@ A Zero-Knowledge Proof (ZKP) based auction system where users can submit sealed 
 
 ```text
 honest-auction-house/
-├── circuits/               # ZKP Circuits (.circom) & Compilation Artifacts
-├── client/                 # React Frontend (Vite)
-├── server/                 # Express Backend & Prisma ORM
-├── docker-compose.yml      # (Optional) Local DB setup
-└── README.md               # Project Documentation
+├── circuits/               # ZKP Definition
+│   ├── bid_check.circom    # Main Circuit
+│   └── simple_hash.circom  # Utility
+├── client/                 # Frontend
+│   ├── public/             # Contains .wasm and .zkey files
+│   ├── src/
+│   │   ├── lib/snark-utils.ts # Proof generation logic
+│   │   └── components/     # UI Components
+├── server/                 # Backend
+│   ├── src/
+│   │   ├── utils/verifier.ts # Proof verification logic
+│   │   ├── verification_key.json # Required for verifier
+│   │   └── index.ts        # API Routes
+│   └── prisma/             # DB Schema
 ```
+
+---
+
+## High-Level Architecture
+
+The system operates on a "Thick Client" model regarding cryptography. The browser is responsible for generating cryptographic proofs, while the server acts as a coordinator and verifier.
+
+```mermaid
+graph TD
+    subgraph Client [Browser / React App]
+        UI[User Interface]
+        LStore[localStorage (Secrets)]
+        WASM[Circuit WASM]
+        ZKey[Proving Key (.zkey)]
+        Snark[SnarkJS Prover]
+
+        UI --> Snark
+        LStore <--> UI
+        WASM --> Snark
+        ZKey --> Snark
+    end
+
+    subgraph Backend [Node.js Server]
+        API[Express API]
+        Verifier[ZK Verifier]
+        VKey[Verification Key (.json)]
+        Auth[JWT Auth & BCrypt]
+
+        API --> Verifier
+        API --> Auth
+        VKey --> Verifier
+    end
+
+    subgraph Persistence [Database]
+        DB[(PostgreSQL)]
+    end
+
+    Snark --"POST /bid (Proof + Commitment)"--> API
+    UI --"POST /reveal (Secret + Amount)"--> API
+    API --"Read/Write"--> DB
+```
+
+---
+
+## Data Model (Entity-Relationship)
+
+The database schema is designed to separate the User identity from the Bid content until the reveal phase.
+
+```erDiagram
+    USER ||--o{ AUCTION : "creates (seller)"
+    USER ||--o{ BID : "places"
+    USER ||--o{ AUCTION : "wins"
+
+    USER {
+        int id PK
+        string username
+        string password "Hashed"
+        enum role "USER | ADMIN"
+    }
+
+    AUCTION {
+        int id PK
+        string title
+        int durationMinutes
+        datetime biddingEndsAt
+        enum status "OPEN | REVEAL | CLOSED"
+        int winningAmount "Nullable"
+    }
+
+    BID {
+        int id PK
+        string commitment "Unique Hash"
+        int amount "NULL until reveal"
+        string secret "NULL until reveal"
+        datetime createdAt
+```
+
+Key Observation: The `BID` table stores the `amount` and `secret` as `NULL` during the `OPEN` phase. The `commitment` (hash) is the only data point stored initially.
+
+---
+
+## 🔄 How It Works: The Commit-Reveal Scheme
+
+### Phase 1: The Bidding (Commit)
+
+1.  **User** enters an amount (e.g., 5 ETH) and a secret key.
+2.  **Browser** generates a Zero-Knowledge Proof locally using `bid_check.wasm`.
+3.  **Server** verifies the proof and stores the **Commitment Hash**.
+    - _The server does NOT know the amount or the secret._
+4.  **Browser** downloads a backup `.txt` file containing the secret.
+
+### Phase 2: The Reveal (Verify)
+
+1.  Once the auction timer ends, the phase switches to **REVEAL**.
+2.  **User** clicks "Reveal My Bid". The app loads the secret from `localStorage`.
+3.  **Server** hashes the revealed `amount + secret`.
+4.  If `Hash(revealed) == Stored_Commitment`, the bid is accepted as valid.
 
 ## 📅 Project Progress Log
 
@@ -101,6 +220,7 @@ honest-auction-house/
 - **Circuit Update:** Implemented `Num2Bits(64)` range check in `bid_check.circom` to strictly enforce that the `amount` fits within 64 bits.
 - **Client Validation:** Updated `snark-utils.ts` to reject negative numbers, non-integers, and unsafe JavaScript integers before proof generation attempts.
 - **Verification Script:** Added `test_negative_bid.js` to cryptographically prove the circuit rejects invalid field elements that bypass UI checks.
+
 ---
 
 ## 🚀 How to Run Locally
@@ -121,8 +241,6 @@ If using Docker, run this in the root folder:
 docker-compose up -d
 ```
 
-This starts a Postgres DB on port 5432 with user admin and password password123.
-
 ### 2. Setup Backend (Server)
 
 ```bash
@@ -133,7 +251,7 @@ npm install
 
 # 2. Setup Environment Variables
 # Create a .env file and paste the contents from .env.example
-# Ensure DATABASE_URL matches your local DB credentials.
+# Ensure DATABASE_URL matches your local/Docker DB credentials.
 
 # 3. Initialize Database Schema
 npx prisma db push
@@ -165,35 +283,21 @@ npm install
 npm run dev
 ```
 
-App runs on: http://localhost:5173
+#### App runs on: http://localhost:5173
 
-### 4. Code Adjustments for Hybrid Mode
+### 4. Setup Admin (Optional)
 
-Ensure your code gracefully handles both environments.
+To access the Admin Dashboard:
 
-**File:** `server/src/index.ts`
-Your CORS setup currently relies on an env var. Make sure it defaults to localhost if the env var is missing.
+1. Register a new user.
 
-```typescript
-app.use(
-  cors({
-    origin: process.env.FRONTEND_URL || "http://localhost:5173", // Default to Vite's local port
-    methods: ["GET", "POST"],
-    credentials: true,
-  }),
-);
-```
+2. Enter the `ADMIN_SECRET` (Found in `.env`).
 
-File: `client/src/App.tsx` Ensure the API URL defaults to localhost if the Vite env var isn't set.
-
-```typescript
-// If VITE_API_URL is not set in .env, it defaults to localhost:3000
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
-```
+3. This grants access to the `/admin` route to view the global bid ledger and reset the system.
 
 ### 5. ZKP Circuits (Regeneration)
 
-If you modify `.circom` files, you must recompile. Note: We are using the Windows binary for `circom`.
+If you modify `.circom` files, you must recompile. Note: I use the Windows binary for `circom`.
 
 ```bash
 cd circuits
@@ -304,3 +408,9 @@ stateDiagram-v2
         WinnerAnnounced --> [*]
     }
 ```
+
+---
+
+## 📚 Documentation
+
+- **[ZKP & Circom Guide](docs/CIRCOM_GUIDE.md):** Detailed explanation of the circuits, trusted setup, and cryptography used in this project.

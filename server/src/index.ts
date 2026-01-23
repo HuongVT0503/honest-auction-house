@@ -34,12 +34,18 @@ async function finalizeAuction(auctionId: number) {
         where: { id: auctionId },
         include: { bids: true }
     });
-
     if (!auction || auction.status === 'CLOSED') return;
 
     const validBids = auction.bids
         .filter(b => b.amount !== null)
-        .sort((a, b) => (b.amount || 0) - (a.amount || 0)); // Descending
+        .sort((a, b) => {
+            //1st sort: highest
+            const amountDiff = (b.amount || 0) - (a.amount || 0);
+            if (amountDiff !== 0) return amountDiff;
+
+            //2nd sort: earliest
+            return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+        });
 
     let winnerId = null;
     let winningAmount = 0;
@@ -58,6 +64,7 @@ async function finalizeAuction(auctionId: number) {
         }
     });
 }
+
 
 const calculatePhases = (createdAt: Date, durationMinutes: number) => {
     const totalMs = durationMinutes * 60 * 1000;
