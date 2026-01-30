@@ -73,8 +73,8 @@ interface AuctionListProps {
 
 const AuctionList = ({ list, emptyMsg, user, onSelect, onPhaseChange }: AuctionListProps) => (
     <div className="flex-column gap-4">
-        {list.length === 0 && <p className="text-muted">{emptyMsg}</p>}
-        {list.map(auc => (
+        {Array.isArray(list) && list.length === 0 && <p className="text-muted">{emptyMsg}</p>}
+        {Array.isArray(list) && list.map(auc => (
             <AuctionCard
                 key={auc.id}
                 auction={auc}
