@@ -127,9 +127,15 @@ export default function UserDashboard() {
         try {
             const res = await fetch(`${API_URL}/me/bids`, { headers: authHeaders });
             const data = await res.json();
-            setHistory(data);
+            if (Array.isArray(data)) {
+                setHistory(data);
+            } else {
+                console.error("Server returned an error:", data.error);
+                setHistory([]); //reset to empty array to prevent .map() crashes
+            }
         } catch (e) {
             console.error("Failed to fetch history", e);
+            setHistory([]);
         }
     }, [authHeaders]);
 
@@ -164,7 +170,7 @@ export default function UserDashboard() {
 
     const participatingAuctions = useMemo(() => {
         if (!Array.isArray(history)) return [];
-        
+
         const myBidAuctionIds = new Set(history.map(h => h.auction.id));
         return auctions.filter(a =>
             myBidAuctionIds.has(a.id) &&
