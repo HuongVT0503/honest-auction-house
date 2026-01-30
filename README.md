@@ -1,6 +1,6 @@
 # Honest Auction House (ZKP Verifiable Sealed-Bid)
 
-A Zero-Knowledge Proof (ZKP) based auction system where users submit sealed bids without revealing the amount to the server or the public until the auction closes. This guarantees **bid privacy**, **auction integrity**, and protection against **front-running**, using `circom` and `snarkjs`.
+A Zero-Knowledge Proof (ZKP) based auction system where users submit sealed bids without revealing the amount to the server or the public until the bidding time ends. This guarantees **bid privacy**, **auction integrity**, and protection against **front-running**, using `circom` and `snarkjs`.
 
 ---
 
@@ -11,6 +11,20 @@ A Zero-Knowledge Proof (ZKP) based auction system where users submit sealed bids
 - **Database:** PostgreSQL (via Prisma ORM)
 - **Cryptography:** Circom (Circuits), Groth16 Proofs, Poseidon Hash
 - **Infrastructure:** Render (Backend/DB) + Vercel (Frontend)
+
+### Technical Specifications
+
+- **ZKP Circuit:** Groth16 over the `bn128` curve.
+- **Security:** 64-bit range checks via `Num2Bits(64)` to prevent finite field wrapping attacks.
+- **Hashing:** Poseidon Hash (ZK-optimized).
+- **State Engine:** Hybrid "Lazy + Proactive" system. Phase transitions are triggered by user interaction (`GET /auctions`) or a 60-second server interval.
+- **⚠️ Critical Timing Notice**: The Reveal Phase
+  The auction duration is split:
+- **Bidding Phase:** 90% of total time.
+- **Reveal Phase:** Final 10% of total time.
+
+> [!WARNING]
+> If setting short auction durations (e.g., 5 minutes), the reveal window is only 30 seconds. Ensure durations allow sufficient time for users to submit their secrets.
 
 ---
 
@@ -34,14 +48,17 @@ A Zero-Knowledge Proof (ZKP) based auction system where users submit sealed bids
 While this project demonstrates a functional ZKP architecture, a production-grade deployment would require addressing the following:
 
 ### 1. The "Rational Irrationality" Problem (Incentives)
+
 **Issue:** In a sealed-bid auction, losing bidders have no economic incentive to perform the "Reveal" action (which costs gas/time) once they realize they cannot win.
 **Production Fix:** Implement a **Collateral/Slashing mechanism**. Users must deposit funds to place a sealed bid. If they fail to reveal their bid during the disclosure phase, their deposit is slashed (forfeited).
 
 ### 2. Secret Management & XSS
+
 **Issue:** This demo stores bid secrets in the browser's `localStorage` for UX convenience. In a real scenario, this is vulnerable to Cross-Site Scripting (XSS) attacks.
 **Production Fix:** Secrets should never be stored in plaintext accessible by JS. A production app would use a **Browser Extension Wallet** or **Encrypted Storage** where the decryption key is held solely by the user (e.g., derived from a signature).
 
 ### 3. The Trusted Setup (MPC)
+
 **Issue:** The cryptographic keys (`.zkey`) for this project were generated locally. Theoretically, the developer (me) could possess the "toxic waste" entropy to forge proofs.
 **Production Fix:** A **Multi-Party Computation (MPC) Ceremony** (like the ones used by Zcash or Tornado Cash) is required. This ensures that as long as one participant is honest, the system is secure.
 
@@ -55,7 +72,9 @@ honest-auction-house/
 │   ├── bid_check.circom    # Main Circuit
 │   └── simple_hash.circom  # Utility
 ├── client/                 # Frontend
-│   ├── public/             # Contains .wasm and .zkey files
+│   ├── public/             # Contains .wasm and .zkey files (served at root '/' in deployment)
+│   │   ├── bid_check.wasm
+│   │   └── bid_check_final.zkey
 │   ├── src/
 │   │   ├── lib/snark-utils.ts # Proof generation logic
 │   │   └── components/     # UI Components
@@ -129,8 +148,9 @@ The database schema is designed to separate the User identity from the Bid conte
     AUCTION {
         int id PK
         string title
-        int durationMinutes
-        datetime biddingEndsAt
+        int durationMinutes // Total time (Bidding + Reveal)
+        datetime biddingEndsAt // Explicit cutoff for Phase 1
+        datetime createdAt // Used for lazy phase calculation
         enum status "OPEN | REVEAL | CLOSED"
         int winningAmount "Nullable"
     }
@@ -164,88 +184,7 @@ Key Observation: The `BID` table stores the `amount` and `secret` as `NULL` duri
 3.  **Server** hashes the revealed `amount + secret`.
 4.  If `Hash(revealed) == Stored_Commitment`, the bid is accepted as valid.
 
-## 📅 Project Progress Log
-
-### ✅ Phase 1: Infrastructure & Setup (Completed)
-
-- **Monorepo Initialization:** Established directory structure for `client`, `server`, and `circuits`.
-- **Dependencies Installed:** Configured `package.json` for root, client (React/Vite), and server (Express/Prisma).
-- **Git Integration:** Set up `.gitignore` to handle node_modules, build artifacts, and sensitive `.env` files.
-- **Deployment:**
-  - Frontend successfully deployed to **Vercel**.
-  - Backend successfully deployed to **Render**.
-- PostgreSQL database instance provisioned and connected on **Render**.
-
-### ✅ Phase 2: Database & Backend Core (Completed)
-
-- **Schema Design:** Defined Prisma models for `User`, `Auction`, and `Bid`.
-- **Database Sync:** Ran `prisma db push` and `prisma generate` to create the SQL tables.
-- **API Implementation:**
-  - Initialized Express server with CORS and JSON parsing.
-  - Implemented `POST /register`, `POST /login`, and `POST /auctions`.
-- **Connected:** `PrismaClient` to the active PostgreSQL database.
-
-### ✅ Phase 3: ZKP Circuit Engine & Verification (Completed)
-
-- **Circuit Logic:**
-  - Created `circuits/bid_check.circom`: Validates `Hash(amount, secret) == commitment`.
-  - Created `circuits/simple_hash.circom`: Utility for generating hashes.
-- **Trusted Setup (Ceremony):**
-  - Generated Powers of Tau (Phase 1) and ZKey artifacts (Phase 2).
-  - Exported `verification_key.json` for server-side checks.
-- **Client Integration:**
-  - Implemented `snark-utils.ts` using `snarkjs` and `circomlibjs`.
-  - **Polyfilled Node.js globals** (Buffer) to allow ZK proof generation in Vite/Browser.
-- **Server Verification:**
-  - Implemented `utils/verifier.ts` to cryptographically verify proofs on the backend.
-  - Added `POST /bid` endpoint that accepts a proof, verifies it, and stores the commitment.
-
-### ✅ Phase 4: Full Auction Lifecycle (Completed)
-
-- **Reveal Phase:** Implemented `POST /bid/reveal` logic to cryptographically verify `Hash(amount, secret) == stored_commitment`.
-- **Frontend Integration:**
-  - **Dynamic Auth:** Replaced hardcoded IDs with a working Login/Register flow.
-  - **Auction Dashboard:** Real-time fetching of active auctions via `GET /auctions`.
-  - **Action States:** UI automatically toggles between "Place Sealed Bid" and "Reveal Bid" based on auction status.
-- **Deployment & Stability:**
-  - Resolved TypeScript definitions and ESM import issues for `circomlibjs` on Node.js.
-  - Fixed React Hook dependency cycles and linting errors for production builds.
-  - Configured automated database schema syncing (`prisma db push`) for Render.
-
-### ✅ Phase 5: Production Hardening & UX Polish (Completed)
-
-- **Security:** Replaced plaintext password storage with `bcrypt` hashing for `POST /register` and `POST /login`.
-- **UX Automation:**
-  - Implemented `setInterval` polling in React to automatically refresh the auction list.
-  - Added logic to auto-trigger the "Lazy Update" on the server, ensuring auctions transition from `OPEN` to `REVEAL` without manual refresh.
-- **Production Config:** Configured strict CORS settings to allow secure communication between Vercel (Frontend) and Render (Backend).
-
-### ✅ Phase 6: Logic Completion & Demo Readiness (Completed)
-
-- **Winner Determination:** Implemented `POST /auctions/:id/close` to calculate the winner based on the highest valid revealed bid.
-- **Secret Persistence:** Implemented `localStorage` logic in the client to auto-save and restore bid secrets, preventing users from losing their ability to reveal.
-- **Admin Tools:** Added `POST /admin/reset` endpoint to wipe the database for clean demonstrations.
-- **UX Feedback:** Added immediate list refreshing upon successful bid revelation to visually confirm actions.
-- **Documentation:** Added State Diagrams to complement Sequence Diagrams.
-
-### ✅ Phase 7: Security Hardening (Replay Attack Prevention)
-
-- **Circuit Upgrade:** Modified `bid_check.circom` to include `auctionId` as a public input.
-- **Proof Binding:** The Poseidon hash now calculates `Hash(amount, secret, auctionId)`, ensuring a proof generated for Auction A cannot be replayed on Auction B.
-- **Backend Verification:** Updated `POST /bid` and `POST /bid/reveal` to strictly validate that the proof's public signals match the target auction ID before acceptance.
-
-### ✅ Phase 8: Critical Security Fix (Negative Bid Prevention)
-
-- **Vulnerability Patch:** Addressed the "Negative Bid" exploit where finite field wrapping allowed malicious negative values (e.g., `-1`) to be interpreted as massive positive integers by the circuit.
-- **Circuit Update:** Implemented `Num2Bits(64)` range check in `bid_check.circom` to strictly enforce that the `amount` fits within 64 bits.
-- **Client Validation:** Updated `snark-utils.ts` to reject negative numbers, non-integers, and unsafe JavaScript integers before proof generation attempts.
-- **Verification Script:** Added `test_negative_bid.js` to cryptographically prove the circuit rejects invalid field elements that bypass UI checks.
-
----
-
 ## 🚀 How to Run Locally
-
-Follow these steps to get the full system running on your machine.
 
 ### Prerequisites
 
@@ -271,7 +210,7 @@ npm install
 
 # 2. Setup Environment Variables
 # Create a .env file and paste the contents from .env.example
-# Ensure DATABASE_URL matches your local/Docker DB credentials.
+# Ensure DATABASE_URL matches your local/Docker DB credentials and your ADMIN_SECRET set to a secure string.
 
 # 3. Initialize Database Schema
 npx prisma db push
@@ -309,11 +248,13 @@ npm run dev
 
 To access the Admin Dashboard:
 
-1. Register a new user.
+1. Go to the Register page.
 
-2. Enter the `ADMIN_SECRET` (Found in `.env`).
+2. Toggle the registration form to include the **Admin Secret** field.
 
-3. This grants access to the `/admin` route to view the global bid ledger and reset the system.
+3. Enter the `ADMIN_SECRET` (Found in `.env`).
+
+4. This grants access to the `/admin` route to view the global bid ledger and reset the system.
 
 ### 5. ZKP Circuits (Regeneration)
 
@@ -342,6 +283,37 @@ mv bid_check_final.zkey ../client/public/
 # Server needs this to verify proofs:
 mv verification_key.json ../server/src/
 ```
+
+### 6. 🚀 Optional Integrated Build & Run
+
+The project is configured as a workspace. You can build both the frontend and backend into a single deployable unit.
+
+1. **Full Production Build:**
+
+   ```bash
+   npm run build # Runs build:full in the server directory
+   ```
+
+   This script compiles the React frontend, moves it to `server/dist/public`, and compiles the TypeScript backend.
+
+2. **Run Integrated Server:**
+
+   ```bash
+   npm start
+   ```
+
+   The app will be accessible at `http://localhost:3000`.
+
+#### 🌐 Production Connectivity
+
+- **CORS:** The backend `origin` must match your Vercel URL.
+- **Environment:** Ensure your `.env` (Backend) and Vercel/Vite environment variables are configured:
+  | Variable | Description | Location |
+  | :--- | :--- | :--- |
+  | `DATABASE_URL` | PostgreSQL connection string | Server |
+  | `ADMIN_SECRET` | Required for admin registration | Server |
+  | `VITE_API_URL` | URL of your deployed Backend | Client |
+  | `RP_ID` | Passkey Relying Party ID (default: localhost) | Server |
 
 ---
 
@@ -413,7 +385,7 @@ stateDiagram-v2
         AcceptingBids --> AcceptingBids: User Submits Proof (Sealed)
     }
 
-    OPEN --> REVEAL: Time Expired (Lazy Update)
+    OPEN --> REVEAL: Time Expired (Hybrid: Background Interval + Lazy Update)
 
     state REVEAL {
         [*] --> VerifyingSecrets
@@ -431,6 +403,30 @@ stateDiagram-v2
 
 ---
 
+🛡️ Security
+
+### ✅ Verified Security Features
+
+The following logic has been confirmed secure:
+
+1.  **Replay Attack Protection:** The circuit includes `auctionId` as a public input, and the server strictly validates `publicSignals[0] === auctionId` before accepting a proof.
+2.  **Negative Bid Prevention:** The circuit utilizes `Num2Bits(64)` to prevent finite field wrapping attacks (e.g., submitting `-1` to represent a large positive integer).
+3.  **Data Minimization:** The server database stores `amount` and `secret` as `NULL` until the user explicitly authorizes a reveal.
+
+### 🚨 Known Vulnerabilities & Risks
+
+_See [docs/SECURITY_AND_FUTURE_FIXES.md](docs/SECURITY_AUDIT.md) for the full report._
+
+1.  **Secrets in `localStorage` (Critical):** The app currently stores bid secrets in `localStorage`. This is vulnerable to XSS attacks.
+    **Future Fix:** Use `HttpOnly` cookies or non-persistent session storage.
+2.  **Lack of Rate Limiting (High):** The `/bid` endpoint verifies ZK proofs (computationally expensive). Without rate limiting, this is a DoS vector.
+3.  **"Rational Irrationality" (Protocol):** Losing bidders have no economic incentive to reveal their bids.
+    **Future Fix:** Implement a deposit/slashing mechanism.
+
+---
+
 ## 📚 Documentation
 
-- **[ZKP & Circom Guide](docs/CIRCOM_GUIDE.md):** Detailed explanation of the circuits, trusted setup, and cryptography used in this project.
+- **[Security Audit](docs/SECURITY_AUDIT.md):** Detailed breakdown of vulnerabilities and fixes.
+- **[System Flows](docs/SYSTEM_FLOWS.md):** Architecture and user journeys.
+- **[ZKP & Circom Guide](docs/CIRCOM_GUIDE.md):** Cryptography deep dive.
