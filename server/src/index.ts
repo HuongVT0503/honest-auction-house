@@ -7,13 +7,15 @@ import bcrypt from 'bcryptjs';
 import path from 'path';
 import jwt from 'jsonwebtoken';
 import { authenticateToken, requireAdmin, AuthRequest } from './middleware/auth';
+import { getPoseidonHash } from './utils/hashing';
+import { BidProofRequest, RevealRequest } from './types/zkp';
 
 dotenv.config();
 
 const app = express();
 const prisma = new PrismaClient();
 const PORT = process.env.PORT || 3000;
-const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_key_change_in_prod';
+const JWT_SECRET = process.env.JWT_SECRET || 'secret8yo89i9oh8njkng89t4huj';
 
 app.use(cors({
     origin: process.env.FRONTEND_URL || "http://localhost:5173",
@@ -21,13 +23,6 @@ app.use(cors({
     credentials: true
 }));
 app.use(express.json());
-
-async function getPoseidonHash(amount: any, secret: any, auctionId: any) {
-    const { buildPoseidon } = await import('circomlibjs');
-    const poseidon = await buildPoseidon();
-    const hashBytes = poseidon([BigInt(amount), BigInt(secret), BigInt(auctionId)]);
-    return poseidon.F.toString(hashBytes);
-}
 
 async function finalizeAuction(auctionId: number) {
     const auction = await prisma.auction.findUnique({
@@ -308,7 +303,7 @@ app.get('/auctions', async (req, res) => {
 //place a Sealed Bid
 app.post('/bid', authenticateToken, async (req: AuthRequest, res) => {
     try {
-        const { auctionId, proof, publicSignals } = req.body;
+        const { auctionId, proof, publicSignals } = req.body as BidProofRequest;
         const bidderId = req.user!.userId;
 
         const auction = await prisma.auction.findUnique({
@@ -332,8 +327,8 @@ app.post('/bid', authenticateToken, async (req: AuthRequest, res) => {
         const commitment = publicSignals[1];
 
         //verify proof was gen specifically for THIS auction
-        if (proofAuctionId !== String(auctionId)) {
-            return res.status(400).json({ error: "Invalid Proof: Auction ID mismatch (Replay Attack Attempt?)" });
+        if (BigInt(proofAuctionId) !== BigInt(auctionId)) {
+            return res.status(400).json({ error: "Invalid Proof: Auction ID mismatch" });
         }
 
         //verify ZK proof
@@ -369,7 +364,7 @@ app.post('/bid', authenticateToken, async (req: AuthRequest, res) => {
 //Reveal
 app.post('/bid/reveal', async (req, res) => {
     try {
-        const { auctionId, bidderId, amount, secret } = req.body;
+        const { auctionId, amount, secret } = req.body as RevealRequest;
 
         try {
             BigInt(amount);
@@ -420,7 +415,11 @@ app.post('/bid/reveal', async (req, res) => {
 
         res.json({ success: true, message: "Bid revealed successfully!" });
 
-    } catch (error) {
+    } catch (error: any) {
+        if (error.message?.includes("Hashing Error")) {
+            return res.status(400).json({ error: error.message });
+        }
+
         console.error("Reveal error:", error);
         res.status(500).json({ error: 'Failed to reveal bid' });
     }

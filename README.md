@@ -27,6 +27,26 @@ A Zero-Knowledge Proof (ZKP) based auction system where users submit sealed bids
 
 ---
 
+---
+
+## ⚠️ Production Considerations & Trade-offs
+
+While this project demonstrates a functional ZKP architecture, a production-grade deployment would require addressing the following:
+
+### 1. The "Rational Irrationality" Problem (Incentives)
+**Issue:** In a sealed-bid auction, losing bidders have no economic incentive to perform the "Reveal" action (which costs gas/time) once they realize they cannot win.
+**Production Fix:** Implement a **Collateral/Slashing mechanism**. Users must deposit funds to place a sealed bid. If they fail to reveal their bid during the disclosure phase, their deposit is slashed (forfeited).
+
+### 2. Secret Management & XSS
+**Issue:** This demo stores bid secrets in the browser's `localStorage` for UX convenience. In a real scenario, this is vulnerable to Cross-Site Scripting (XSS) attacks.
+**Production Fix:** Secrets should never be stored in plaintext accessible by JS. A production app would use a **Browser Extension Wallet** or **Encrypted Storage** where the decryption key is held solely by the user (e.g., derived from a signature).
+
+### 3. The Trusted Setup (MPC)
+**Issue:** The cryptographic keys (`.zkey`) for this project were generated locally. Theoretically, the developer (me) could possess the "toxic waste" entropy to forge proofs.
+**Production Fix:** A **Multi-Party Computation (MPC) Ceremony** (like the ones used by Zcash or Tornado Cash) is required. This ensures that as long as one participant is honest, the system is secure.
+
+---
+
 ## 📂 Project Structure
 
 ```text
