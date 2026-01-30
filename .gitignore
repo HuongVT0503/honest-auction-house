@@ -7,7 +7,7 @@ yarn.lock
 dist
 build
 
-# --- Environment Variables (CRITICAL) ---
+# --- Environment Variables ---
 .env
 .env.*
 !.env.example
@@ -26,29 +26,10 @@ Thumbs.db
 .idea
 
 # --- ZKP / Circom Artifacts ---
-# These files can get HUGE. We generally ignore the intermediate build steps.
 
-# 1. The "Powers of Tau" setup files (often 1GB+)
+# 1. The "Powers of Tau" setup files
 *.ptau
 
 # 2. Intermediate circuit compilation files
 *.r1cs
 *.sym
-
-# 3. Note on .zkey and .wasm:
-# Usually, we ignore these too. However, for a student project deployed on Vercel,
-# it is often easier to COMMIT the final .wasm and .zkey files so the frontend
-# can read them without needing to compile circuits on the server.
-# If your .zkey file is >100MB, GitHub will reject it. 
-# For now, we will NOT ignore them so you can deploy easily.
-# *.zkey
-# *.wasm
-
-# --- Prisma ---
-# Ignore the migrations folder if you want to regenerate them, 
-# but usually, we KEEP migrations. Ignore the generated client if custom output.
-
-
-tree.py
-dump.py
-full.txt
