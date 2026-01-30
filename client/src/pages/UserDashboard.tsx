@@ -163,6 +163,8 @@ export default function UserDashboard() {
         [auctions, user]);
 
     const participatingAuctions = useMemo(() => {
+        if (!Array.isArray(history)) return [];
+        
         const myBidAuctionIds = new Set(history.map(h => h.auction.id));
         return auctions.filter(a =>
             myBidAuctionIds.has(a.id) &&
