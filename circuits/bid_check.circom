@@ -12,7 +12,7 @@ template BidCheck() {
     signal input auctionId;
     signal input commitment;
 
-    component rangeCheck = Num2Bits(64); //prevents input negative numbers
+    component rangeCheck = Num2Bits(64);                 //prevents input negative numbers
     rangeCheck.in <== amount;
 
     //constraints/intergrity check

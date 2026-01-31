@@ -9,7 +9,6 @@ const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 type TabType = 'market' | 'selling' | 'bidding' | 'won';
 
 //sub components
-
 const SectionDivider = ({ title }: { title: string }) => (
     <h4 className="mt-4 mb-2 text-sub section-divider">
         {title}
@@ -98,6 +97,7 @@ export default function UserDashboard() {
     const [activeTab, setActiveTab] = useState<TabType>('market');
 
     const [newTitle, setNewTitle] = useState('');
+    const [newDescription, setNewDescription] = useState('');
     const [newDuration, setNewDuration] = useState(10);
     const [isCreating, setIsCreating] = useState(false);
 
@@ -182,7 +182,6 @@ export default function UserDashboard() {
     const marketAuctions = useMemo(() =>
         auctions.filter(a => a.status !== 'CLOSED'),
         [auctions]);
-
     //
 
     const createAuction = async () => {
@@ -191,10 +190,15 @@ export default function UserDashboard() {
             await fetch(`${API_URL}/auctions`, {
                 method: 'POST',
                 headers: authHeaders,
-                body: JSON.stringify({ title: newTitle, durationMinutes: newDuration })
+                body: JSON.stringify({
+                    title: newTitle,
+                    description: newDescription,
+                    durationMinutes: newDuration
+                })
             });
             alert("Auction Created!");
             setNewTitle('');
+            setNewDescription('');
             setIsCreating(false);
             fetchAuctions();
         } catch (e) {
@@ -223,6 +227,7 @@ export default function UserDashboard() {
             const data = await res.json();
             if (res.ok) {
                 setStatus(`Bid Placed! Commitment: ${data.commitment.slice(0, 10)}...`);
+
                 const storageKey = `bids_${selectedAuction.id}_${user.id}`;
 
                 let existingBids: LocalBid[] = [];
@@ -239,6 +244,7 @@ export default function UserDashboard() {
                     commitment: data.commitment,
                     timestamp: Date.now()
                 };
+
                 existingBids.push(newBid);
                 localStorage.setItem(storageKey, JSON.stringify(existingBids));
 
@@ -395,6 +401,12 @@ KEEP THIS FILE SAFE! You need the Secret to reveal your bid.
                                         onChange={e => setNewTitle(e.target.value)}
                                         aria-label="Auction Item Title"
                                     />
+                                    <textarea
+                                        placeholder="Item Description (Optional)"
+                                        value={newDescription}
+                                        onChange={e => setNewDescription(e.target.value)}
+                                        aria-label="Auction Description"
+                                    />
                                     <div>
                                         <label>Duration (Minutes)</label>
                                         <input
@@ -518,6 +530,14 @@ KEEP THIS FILE SAFE! You need the Secret to reveal your bid.
                     </button>
 
                     <h2 className="font-large mb-2">{selectedAuction.title}</h2>
+
+                    {selectedAuction.description && (
+                        <div className="mb-4 description-box">
+                            <div className="text-sub mb-2 description-label">Description</div>
+                            <div className="description-text">{selectedAuction.description}</div>
+                        </div>
+                    )}
+
                     <div className="auction-meta mb-20">
                         <span className={getStatusClass(selectedAuction.status)}>{selectedAuction.status}</span>
                         <AuctionTimer

@@ -8,6 +8,7 @@ export interface User {
 export interface Auction {
     id: number;
     title: string;
+    description?: string;
     status: "OPEN" | "REVEAL" | "CLOSED";
     seller: { username: string };
     createdAt: string;      

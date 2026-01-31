@@ -1,6 +1,6 @@
 pragma circom 2.0.0;
 
-//import Poseidon hashing function (standard for ZK)
+//Poseidon hashing function (standard for ZK)
 include "../node_modules/circomlib/circuits/poseidon.circom";
 
 template SimpleHash() {

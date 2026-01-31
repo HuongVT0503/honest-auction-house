@@ -150,7 +150,8 @@
   gap: 1rem;
 }
 
-input {
+input,
+textarea {
   background-color: var(--bg-input);
   border: 1px solid var(--border);
   color: var(--text-main);
@@ -161,7 +162,31 @@ input {
   width: 100%;
   box-sizing: border-box;
 }
-input:focus {
+
+textarea {
+  min-height: 80px;
+  font-family: inherit;
+  resize: vertical;
+}
+
+.description-box {
+  padding: 1rem;
+  background-color: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.description-label {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+}
+
+.description-text {
+  white-space: pre-wrap;
+}
+
+input:focus,
+textarea:focus {
   outline: none;
   border-color: var(--primary);
 }
